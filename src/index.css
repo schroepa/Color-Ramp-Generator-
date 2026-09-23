@@ -1,0 +1,135 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --ink: #13202a;
+  --ink-soft: #243846;
+  --muted: #5d6f7c;
+  --bg: #e7eef1;
+  --surface: #f3f7f8;
+  --surface-hover: #ebf2f4;
+  --elevated: #fbfcfc;
+  --line: color-mix(in oklab, #13202a 12%, transparent);
+  --accent: #0f7a72;
+  --accent-glow: color-mix(in oklab, #1aa89c 45%, transparent);
+  --ring: color-mix(in oklab, #0f7a72 55%, white);
+  --font-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    font-family: var(--font-sans);
+    color: var(--ink);
+    background: var(--bg);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root {
+    min-height: 100svh;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+}
+
+.app-shell {
+  background:
+    radial-gradient(1200px 600px at 8% -10%, rgba(26, 168, 156, 0.18), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(196, 92, 38, 0.1), transparent 50%),
+    linear-gradient(165deg, #dfe9ed 0%, #eef3f5 42%, #e4ecef 100%);
+}
+
+.atmosphere {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.35) 48%, transparent 100%),
+    repeating-linear-gradient(
+      -18deg,
+      transparent,
+      transparent 11px,
+      rgba(19, 32, 42, 0.015) 11px,
+      rgba(19, 32, 42, 0.015) 12px
+    );
+  mask-image: linear-gradient(to bottom, black 0%, black 70%, transparent 100%);
+  animation: drift 18s ease-in-out infinite alternate;
+}
+
+.grain {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-1.5%, 1%, 0);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.35s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atmosphere,
+  .animate-rise,
+  .animate-fade-in {
+    animation: none !important;
+  }
+}
