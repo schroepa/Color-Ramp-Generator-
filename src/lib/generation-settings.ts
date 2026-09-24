@@ -3,7 +3,7 @@ export const GENERATION_STORAGE_KEY = 'tintfield.generation.v1'
 export const STEPS_MIN = 1
 export const STEPS_MAX = 16
 
-/** Matches the previous hardcoded OKLCH endpoints in color-system. */
+/** Matches ColorBox-style OKLCH endpoints (light soft / dark deep). */
 export const DEFAULT_LIGHTEST_LIGHTNESS = 0.985
 export const DEFAULT_DARKEST_LIGHTNESS = 0.12
 
@@ -18,11 +18,118 @@ export type GenerationSettings = {
   darkestLightness: number
 }
 
+export type GenerationPresetId =
+  | 'tailwind'
+  | 'tailwind-dense'
+  | 'material'
+  | 'compact'
+
+export type GenerationPreset = {
+  id: GenerationPresetId
+  label: string
+  hint: string
+  settings: GenerationSettings
+  /** Export / CSS step keys (length = lightSteps + 1 + darkSteps). */
+  stepKeys: readonly string[]
+}
+
+export const GENERATION_PRESETS: GenerationPreset[] = [
+  {
+    id: 'tailwind',
+    label: 'Tailwind',
+    hint: '11 steps — drop-in for theme.colors',
+    settings: {
+      lightSteps: 5,
+      darkSteps: 5,
+      lightestLightness: DEFAULT_LIGHTEST_LIGHTNESS,
+      darkestLightness: DEFAULT_DARKEST_LIGHTNESS,
+    },
+    stepKeys: [
+      '50',
+      '100',
+      '200',
+      '300',
+      '400',
+      '500',
+      '600',
+      '700',
+      '800',
+      '900',
+      '950',
+    ],
+  },
+  {
+    id: 'tailwind-dense',
+    label: 'Tailwind dense',
+    hint: '19 steps — half-stops 50…950',
+    settings: {
+      lightSteps: 9,
+      darkSteps: 9,
+      lightestLightness: DEFAULT_LIGHTEST_LIGHTNESS,
+      darkestLightness: DEFAULT_DARKEST_LIGHTNESS,
+    },
+    stepKeys: [
+      '50',
+      '100',
+      '150',
+      '200',
+      '250',
+      '300',
+      '350',
+      '400',
+      '450',
+      '500',
+      '550',
+      '600',
+      '650',
+      '700',
+      '750',
+      '800',
+      '850',
+      '900',
+      '950',
+    ],
+  },
+  {
+    id: 'material',
+    label: 'Material',
+    hint: '10 steps — Material 50…900',
+    settings: {
+      lightSteps: 4,
+      darkSteps: 5,
+      lightestLightness: DEFAULT_LIGHTEST_LIGHTNESS,
+      darkestLightness: DEFAULT_DARKEST_LIGHTNESS,
+    },
+    stepKeys: [
+      '50',
+      '100',
+      '200',
+      '300',
+      '400',
+      '500',
+      '600',
+      '700',
+      '800',
+      '900',
+    ],
+  },
+  {
+    id: 'compact',
+    label: 'Compact',
+    hint: '5 steps — quick UI tokens',
+    settings: {
+      lightSteps: 2,
+      darkSteps: 2,
+      lightestLightness: DEFAULT_LIGHTEST_LIGHTNESS,
+      darkestLightness: DEFAULT_DARKEST_LIGHTNESS,
+    },
+    stepKeys: ['100', '300', '500', '700', '900'],
+  },
+]
+
+/** Default matches Tailwind dense (previous product default). */
 export const DEFAULT_GENERATION_SETTINGS: GenerationSettings = {
-  lightSteps: 9,
-  darkSteps: 9,
-  lightestLightness: DEFAULT_LIGHTEST_LIGHTNESS,
-  darkestLightness: DEFAULT_DARKEST_LIGHTNESS,
+  ...GENERATION_PRESETS.find((p) => p.id === 'tailwind-dense')!.settings,
 }
 
 type StoredPayload = {
@@ -80,9 +187,31 @@ export function totalSteps(settings: GenerationSettings): number {
   return settings.lightSteps + 1 + settings.darkSteps
 }
 
-/** True when step count matches the classic Tailwind 50–950 ramp. */
+/** Match a named preset by step counts only (lightness can still be custom). */
+export function matchGenerationPreset(
+  settings: GenerationSettings,
+): GenerationPresetId | null {
+  const found = GENERATION_PRESETS.find(
+    (preset) =>
+      preset.settings.lightSteps === settings.lightSteps &&
+      preset.settings.darkSteps === settings.darkSteps,
+  )
+  return found?.id ?? null
+}
+
+export function settingsForPreset(id: GenerationPresetId): GenerationSettings {
+  const preset = GENERATION_PRESETS.find((item) => item.id === id)
+  return { ...(preset ?? GENERATION_PRESETS[1]!).settings }
+}
+
+export function stepKeysForPreset(id: GenerationPresetId): readonly string[] {
+  const preset = GENERATION_PRESETS.find((item) => item.id === id)
+  return preset?.stepKeys ?? GENERATION_PRESETS[1]!.stepKeys
+}
+
+/** @deprecated Prefer matchGenerationPreset — true for dense 19-step Tailwind keys. */
 export function usesTailwindStepKeys(settings: GenerationSettings): boolean {
-  return settings.lightSteps === 9 && settings.darkSteps === 9
+  return matchGenerationPreset(settings) === 'tailwind-dense'
 }
 
 export function loadGenerationSettings(): GenerationSettings {

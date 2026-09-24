@@ -1,25 +1,28 @@
-import { useCallback, useRef, useState } from 'react'
-import type { ToastType } from '@/components/ui/smoothui/basic-toast'
+import { toast as sonnerToast } from 'sonner'
 
-export type ActionToastState = {
-  id: number
-  message: string
-  type: ToastType
-} | null
+export type ToastType = 'success' | 'error' | 'info' | 'warning'
 
-/** Single-slot toast state — never stacks; Basic Toast owns auto-dismiss. */
+/** Thin announce API over Sonner — single call site for action feedback. */
 export function useActionToast() {
-  const [toast, setToast] = useState<ActionToastState>(null)
-  const idRef = useRef(0)
+  const announce = (message: string, type: ToastType = 'success') => {
+    if (type === 'error') {
+      sonnerToast.error(message)
+      return
+    }
+    if (type === 'warning') {
+      sonnerToast.warning(message)
+      return
+    }
+    if (type === 'info') {
+      sonnerToast.info(message)
+      return
+    }
+    sonnerToast.success(message)
+  }
 
-  const clear = useCallback(() => {
-    setToast(null)
-  }, [])
+  const clear = () => {
+    sonnerToast.dismiss()
+  }
 
-  const announce = useCallback((message: string, type: ToastType = 'success') => {
-    idRef.current += 1
-    setToast({ id: idRef.current, message, type })
-  }, [])
-
-  return { toast, announce, clear }
+  return { announce, clear }
 }

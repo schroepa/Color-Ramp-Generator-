@@ -1,151 +1,191 @@
 'use client'
 
-import { Pencil, Plus, Trash2 } from 'lucide-react'
-import { Liquid } from 'liquid-gooey'
-import { useReducedMotion } from 'motion/react'
+import { useState } from 'react'
+import { Check, ChevronsUpDown, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { useLiquidMotion } from '@/components/ui/smoothui/smooth-button'
-import { AppTooltip } from '@/components/ui/tooltip'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import type { ProjectListItem } from '@/lib/projects'
 import { cn } from '@/lib/utils'
+
+export type ScaleMenuItem = {
+  id: string
+  name: string
+  baseColor: string
+}
 
 type ProjectSwitcherProps = {
   activeId: string
   activeName: string
   projects: ProjectListItem[]
+  /** Scales in the active set — shown in the menu so names are discoverable. */
+  scales?: ScaleMenuItem[]
   onCreate: () => void
-  onRename: () => void
   onSwitch: (id: string) => void
   onDelete: () => void
+  onRename: (name: string) => void
+  onFocusScale?: (id: string) => void
+  onImport?: () => void
   className?: string
 }
 
-/** Project select trigger with the same liquid hover/press language as buttons. */
-function ProjectSelectTrigger({
-  activeName,
-  className,
-}: {
-  activeName: string
-  className?: string
-}) {
-  const shouldReduceMotion = useReducedMotion()
-  const { scale, transition, bind } = useLiquidMotion()
-  const liquidScale = shouldReduceMotion ? 1 : scale
-
-  return (
-    <Liquid
-      blur={6}
-      contrast={18}
-      fill="var(--chip)"
-      filterPadding={14}
-      className="relative col-start-2 row-start-1 w-full min-w-0 tablet:col-auto tablet:row-auto tablet:w-auto [&_[data-gooey-svg]]:pointer-events-none"
-    >
-      <Liquid.Item
-        scale={liquidScale}
-        transition={shouldReduceMotion ? 'snappy' : transition}
-        morph={
-          shouldReduceMotion
-            ? { shape: false, contentBlur: 0, bounce: 0 }
-            : { shape: true, contentBlur: 0, bounce: 0.35 }
-        }
-      >
-        <SelectTrigger
-          aria-label="Active project"
-          className={cn(
-            'h-8 min-h-8 w-full min-w-0 border-[var(--line)] bg-[var(--chip)] px-2.5 type-label text-[var(--text)] tablet:w-[min(100%,14rem)]',
-            className,
-          )}
-          onPointerEnter={bind.onPointerEnter}
-          onPointerLeave={bind.onPointerLeave}
-          onPointerDown={bind.onPointerDown}
-          onPointerUp={bind.onPointerUp}
-          onPointerCancel={bind.onPointerCancel}
-          onFocus={bind.onFocus}
-          onBlur={bind.onBlur}
-        >
-          <SelectValue placeholder={activeName}>{activeName}</SelectValue>
-        </SelectTrigger>
-      </Liquid.Item>
-    </Liquid>
-  )
-}
-
-/** App-chrome project controls: switch, create, rename, delete. */
+/**
+ * Header set switcher — set name on the trigger; scales listed inside the menu.
+ */
 export function ProjectSwitcher({
   activeId,
   activeName,
   projects,
+  scales = [],
   onCreate,
-  onRename,
   onSwitch,
   onDelete,
+  onRename,
+  onFocusScale,
+  onImport,
   className,
 }: ProjectSwitcherProps) {
+  const [renaming, setRenaming] = useState(false)
+  const [draft, setDraft] = useState(activeName)
   const sorted = [...projects].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
   )
+  const canDelete = projects.length > 1
+  const displayName = activeName.trim() || 'Untitled'
+
+  const commitRename = () => {
+    const next = draft.trim() || 'Untitled'
+    onRename(next)
+    setRenaming(false)
+  }
+
+  if (renaming) {
+    return (
+      <div className={cn('flex min-w-0 flex-1 items-center gap-1.5', className)}>
+        <input
+          autoFocus
+          value={draft}
+          aria-label="Set name"
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commitRename}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              commitRename()
+            }
+            if (event.key === 'Escape') {
+              setDraft(activeName)
+              setRenaming(false)
+            }
+          }}
+          className="type-label h-8 min-w-0 max-w-[16rem] flex-1 rounded-full bg-[var(--chip)] px-3 text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+        />
+      </div>
+    )
+  }
 
   return (
     <div
-      className={cn('contents', className)}
+      className={cn('flex min-w-0 items-center gap-1.5', className)}
       role="group"
-      aria-label="Projects"
+      aria-label="Sets"
     >
-      <Select value={activeId} onValueChange={onSwitch}>
-        <ProjectSelectTrigger activeName={activeName} />
-        <SelectContent align="start">
-          {sorted.map((project) => (
-            <SelectItem key={project.id} value={project.id}>
-              {project.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <div className="col-start-1 row-start-2 flex items-center gap-1.5 tablet:col-auto tablet:row-auto tablet:ml-1">
-        <AppTooltip content="New project">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
           <Button
             type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="New project"
-            onClick={onCreate}
+            variant="secondary"
+            size="sm"
+            aria-label={`Set: ${displayName}`}
+            className="min-w-0 max-w-[12rem] tablet:max-w-[16rem]"
           >
-            <Plus />
+            <span className="truncate">{displayName}</span>
+            <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" aria-hidden />
           </Button>
-        </AppTooltip>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-[14rem]">
+          {sorted.map((project) => {
+            const selected = project.id === activeId
+            return (
+              <DropdownMenuItem
+                key={project.id}
+                aria-label={`Open set ${project.name}`}
+                onSelect={() => onSwitch(project.id)}
+                className="justify-between gap-3"
+              >
+                <span className="truncate">{project.name}</span>
+                {selected ? (
+                  <Check className="size-3.5 shrink-0 opacity-70" aria-hidden />
+                ) : null}
+              </DropdownMenuItem>
+            )
+          })}
 
-        <AppTooltip content="Rename project">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Rename project"
-            onClick={onRename}
-          >
-            <Pencil />
-          </Button>
-        </AppTooltip>
+          {scales.length > 0 ? (
+            <>
+              <DropdownMenuSeparator />
+              <p className="type-caption px-3 py-1.5 text-[var(--text-faint)]">
+                Scales in this set
+              </p>
+              {scales.map((scale) => {
+                const label = scale.name.trim() || scale.baseColor
+                return (
+                  <DropdownMenuItem
+                    key={scale.id}
+                    aria-label={`Go to scale ${label}`}
+                    onSelect={() => onFocusScale?.(scale.id)}
+                  >
+                    <span
+                      className="size-3.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: scale.baseColor }}
+                      aria-hidden
+                    />
+                    <span className="truncate">{label}</span>
+                  </DropdownMenuItem>
+                )
+              })}
+            </>
+          ) : null}
 
-        <AppTooltip content="Delete project">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Delete project"
-            onClick={onDelete}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            aria-label="Rename set"
+            onSelect={(event) => {
+              event.preventDefault()
+              setDraft(activeName)
+              setRenaming(true)
+            }}
           >
-            <Trash2 />
-          </Button>
-        </AppTooltip>
-      </div>
+            <Pencil className="size-3.5" aria-hidden />
+            Rename set
+          </DropdownMenuItem>
+          <DropdownMenuItem aria-label="New set" onSelect={onCreate}>
+            <Plus className="size-3.5" aria-hidden />
+            New set
+          </DropdownMenuItem>
+          {onImport ? (
+            <DropdownMenuItem aria-label="Import JSON" onSelect={onImport}>
+              <Upload className="size-3.5" aria-hidden />
+              Import JSON
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            aria-label="Delete set"
+            disabled={!canDelete}
+            onSelect={onDelete}
+            className="text-[var(--text-muted)] focus:text-[var(--text)]"
+          >
+            <Trash2 className="size-3.5" aria-hidden />
+            Delete set
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

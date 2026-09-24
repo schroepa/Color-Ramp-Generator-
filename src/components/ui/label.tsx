@@ -1,15 +1,19 @@
+import * as React from 'react'
+import * as LabelPrimitive from '@radix-ui/react-label'
 import { cn } from '@/lib/utils'
-import type { LabelHTMLAttributes } from 'react'
 
-/** Compact field label for the app form density. */
-export function Label({
+/** Compact field label for app form density. */
+function Label({
   className,
   ...props
-}: LabelHTMLAttributes<HTMLLabelElement>) {
+}: React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root>) {
   return (
-    <label
+    <LabelPrimitive.Root
+      data-slot="label"
       className={cn('type-label text-[var(--text-muted)]', className)}
       {...props}
     />
   )
 }
+
+export { Label }

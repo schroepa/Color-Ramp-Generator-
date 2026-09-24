@@ -36,10 +36,10 @@
   --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Breakpoints: mobile (base) · tablet · desktop · desktop+ */
+  /* Breakpoints: mobile · tablet 768 · desktop 1280 · wide 1600 */
   --breakpoint-tablet: 48rem;
-  --breakpoint-desktop: 64rem;
-  --breakpoint-desktop-plus: 90rem;
+  --breakpoint-desktop: 80rem;
+  --breakpoint-desktop-plus: 100rem;
 }
 
 :root {
@@ -47,8 +47,8 @@
 
   /* —— Breakpoints (reference) —— */
   --bp-tablet: 48rem;
-  --bp-desktop: 64rem;
-  --bp-desktop-plus: 90rem;
+  --bp-desktop: 80rem;
+  --bp-desktop-plus: 100rem;
 
   /* —— Color —— */
   --color-bg: #121212;

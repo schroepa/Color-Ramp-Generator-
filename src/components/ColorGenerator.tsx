@@ -1,16 +1,26 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Copy, Download, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { ChevronRight, Download, GripVertical, Pencil, Share2, SlidersHorizontal } from 'lucide-react'
 import { ColorScaleRow } from '@/components/ColorScaleRow'
+import { ContrastLegend } from '@/components/ContrastLegend'
+import { EntryState } from '@/components/EntryState'
+import { ExportDialog } from '@/components/ExportDialog'
 import { GenerationSettingsPanel } from '@/components/GenerationSettingsPanel'
+import { MobileScaleDetail } from '@/components/MobileScaleDetail'
+import { MobileSheet } from '@/components/MobileSheet'
+import { NewScaleForm } from '@/components/NewScaleForm'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
+import { ScaleOverflowMenu } from '@/components/ScaleOverflowMenu'
+import type { ScaleCopyFormat } from '@/components/ScaleCopyMenu'
+import { StepInspector } from '@/components/StepInspector'
+import { SurfaceSwitcher } from '@/components/SurfaceSwitcher'
 import { SystemSwitch } from '@/components/SystemSwitch'
+import { UiRampPreview } from '@/components/UiRampPreview'
 import { Button } from '@/components/ui/button'
-import { AppTooltip } from '@/components/ui/tooltip'
-import BasicToast from '@/components/ui/smoothui/basic-toast'
-import Select from '@/components/ui/smoothui/select'
 import { useActionToast } from '@/hooks/use-action-toast'
+import { toast as sonnerToast } from 'sonner'
+import { contrastAgainstWhiteAndBlack } from '@/lib/contrast'
 import {
-  baseStepIndex,
+  baseIndexFor,
   type ColorSystem,
   generateScaleColors,
   normalizeHex,
@@ -22,6 +32,23 @@ import {
   type GenerationSettings,
   normalizeGenerationSettings,
 } from '@/lib/generation-settings'
+import {
+  loadRampDensity,
+  saveRampDensity,
+  type RampDensity,
+} from '@/lib/ramp-density'
+import {
+  loadRampSurface,
+  rampSurfaceMeta,
+  saveRampSurface,
+  type RampSurface,
+} from '@/lib/ramp-surface'
+import { suggestScaleName } from '@/lib/scale-name'
+import {
+  buildShareUrl,
+  decodeSharePayload,
+  shareOrCopyUrl,
+} from '@/lib/share-state'
 import { applyThemePreview, clearThemePreview } from '@/lib/theme-preview'
 import {
   type HydratedProject,
@@ -29,15 +56,14 @@ import {
   type ProjectsStore,
   createProject,
   deleteProject,
-  downloadProjectJson,
   getActiveProject,
   listProjects,
   loadProjectsStore,
   projectToJson,
-  renameProject,
   saveActiveProjectSnapshot,
   switchProject,
 } from '@/lib/projects'
+import { cn } from '@/lib/utils'
 
 export type ColorScale = {
   id: string
@@ -47,6 +73,8 @@ export type ColorScale = {
   colors: string[]
 }
 
+type MainTab = 'ramps' | 'preview' | 'contrast'
+
 function createScale(
   baseColor = '#0d7377',
   system: ColorSystem = 'saturated',
@@ -55,7 +83,7 @@ function createScale(
   const hex = normalizeHex(baseColor) ?? '#0d7377'
   return {
     id: crypto.randomUUID(),
-    name: '',
+    name: suggestScaleName(hex),
     baseColor: hex,
     system,
     colors: generateScaleColors(hex, system, settings),
@@ -76,39 +104,82 @@ function bootstrapProject(): {
   project: HydratedProject
   projects: ProjectListItem[]
 } {
+  const shared = decodeSharePayload(window.location.hash)
+  if (shared && shared.scales.length > 0) {
+    const { project } = createProject(shared.name)
+    const hydratedScales = shared.scales.map((s, i) => ({
+      ...createScale(s.baseColor, s.system, shared.generation),
+      name: shared.scales[i]?.name || suggestScaleName(s.baseColor),
+    }))
+    const store = saveActiveProjectSnapshot({
+      id: project.id,
+      name: shared.name,
+      scales: hydratedScales,
+      generation: shared.generation,
+    })
+    window.history.replaceState(
+      null,
+      '',
+      window.location.pathname + window.location.search,
+    )
+    return {
+      project: {
+        ...project,
+        name: shared.name,
+        generation: shared.generation,
+        scales: hydratedScales,
+      },
+      projects: listProjects(store),
+    }
+  }
   const store = loadProjectsStore()
   return { project: getActiveProject(store), projects: listProjects(store) }
 }
 
-type CopyFormat = 'json' | 'css' | 'hex'
-
-const COPY_ACTIONS: {
-  format: CopyFormat
-  label: string
-  tooltip: string
-  ariaLabel: string
-}[] = [
-  { format: 'json', label: 'JSON', tooltip: 'Copy as JSON', ariaLabel: 'Copy scale as JSON' },
-  { format: 'css', label: 'CSS', tooltip: 'Copy as CSS', ariaLabel: 'Copy scale as CSS' },
-  { format: 'hex', label: 'HEX', tooltip: 'Copy as HEX', ariaLabel: 'Copy scale as HEX' },
-]
+type CopyFormat = ScaleCopyFormat
 
 function ScaleEditor({
   scale,
   stepKeys,
   baseIndex,
+  density,
+  selectedStep,
+  dragIndex,
+  index,
+  surfaceCss,
+  onSelectStep,
+  onOpenDetail,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  previewActive,
   onChange,
   onCopy,
   onRemove,
+  onTogglePreview,
   onCopiedHex,
   onCopyFailed,
 }: {
   scale: ColorScale
   stepKeys: string[]
   baseIndex: number
+  density: RampDensity
+  selectedStep: number | null
+  dragIndex: number | null
+  index: number
+  surfaceCss: string
+  onSelectStep: (index: number) => void
+  onOpenDetail: () => void
+  onDragStart: (index: number) => void
+  onDragOver: (event: DragEvent, index: number) => void
+  onDrop: (index: number) => void
+  onDragEnd: () => void
+  previewActive: boolean
   onChange: (patch: Partial<Pick<ColorScale, 'name' | 'baseColor' | 'system'>>) => void
   onCopy: (format: CopyFormat) => void
   onRemove: () => void
+  onTogglePreview: () => void
   onCopiedHex?: () => void
   onCopyFailed?: () => void
 }) {
@@ -124,22 +195,75 @@ function ScaleEditor({
   }, [scale.name])
 
   return (
-    <li className="flex min-w-0 flex-col gap-4 border-t border-[var(--line)] py-5">
-      <div className="relative z-10 flex min-w-0 flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 tablet:flex tablet:flex-wrap">
-          <input
-            value={name}
-            onChange={(event) => {
-              const next = event.target.value
-              setName(next)
-              onChange({ name: next })
+    <li
+      id={`scale-${scale.id}`}
+      draggable={false}
+      onDragOver={(event) => onDragOver(event, index)}
+      onDrop={() => onDrop(index)}
+      className={cn(
+        '@container flex min-w-0 scroll-mt-20 flex-col gap-4 rounded-[var(--radius-md)] py-1',
+        dragIndex === index && 'opacity-50',
+      )}
+    >
+      <div className="relative z-10 flex min-w-0 flex-col gap-3">
+        <div className="flex min-w-0 items-center gap-1">
+          <button
+            type="button"
+            draggable
+            aria-label={`Reorder ${scale.name || scale.baseColor}`}
+            className="hidden size-8 shrink-0 cursor-grab items-center justify-center rounded-full text-[var(--text-faint)] outline-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-[var(--ring)] tablet:inline-flex"
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = 'move'
+              event.dataTransfer.setData('text/plain', String(index))
+              onDragStart(index)
             }}
-            aria-label={`Name for ${scale.name || scale.baseColor}`}
-            placeholder="Name"
-            spellCheck={false}
-            className="h-8 min-w-0 rounded-full bg-[var(--chip)] px-3 type-label text-[var(--text)] outline-none placeholder:text-[var(--text-faint)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] tablet:w-[7.5rem]"
-          />
-          <label className="relative size-8 min-h-8 min-w-8 shrink-0 cursor-pointer overflow-hidden rounded-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--ring)]">
+            onDragEnd={onDragEnd}
+          >
+            <GripVertical className="size-4" />
+          </button>
+          <div className="relative min-w-0 flex-1">
+            <input
+              value={name}
+              onChange={(event) => {
+                const next = event.target.value
+                setName(next)
+                onChange({ name: next })
+              }}
+              aria-label={`Name for ${scale.name || scale.baseColor}`}
+              placeholder="Scale name"
+              spellCheck={false}
+              className="type-heading w-full min-w-0 border-b border-transparent bg-transparent pr-8 text-[var(--text)] outline-none placeholder:text-[var(--text-faint)] hover:border-[var(--line)] focus-visible:border-[var(--ring)]"
+            />
+            <Pencil
+              className="pointer-events-none absolute right-0 top-1/2 size-3.5 -translate-y-1/2 text-[var(--text-faint)]"
+              aria-hidden
+            />
+            <p className="type-caption mt-0.5 text-[var(--text-faint)]">
+              Base on {stepKeys[baseIndex] ?? 'auto'}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="tablet:hidden"
+            aria-label={`Open ${scale.name || scale.baseColor} detail`}
+            onClick={onOpenDetail}
+          >
+            <ChevronRight />
+          </Button>
+          <div className="hidden tablet:block">
+            <ScaleOverflowMenu
+              previewActive={previewActive}
+              onTogglePreview={onTogglePreview}
+              onCopy={onCopy}
+              onRemove={onRemove}
+            />
+          </div>
+        </div>
+
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <label className="relative size-10 min-h-10 min-w-10 shrink-0 cursor-pointer overflow-hidden rounded-[var(--radius-sm)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--ring)]">
             <input
               type="color"
               value={scale.baseColor}
@@ -157,47 +281,24 @@ function ScaleEditor({
             }}
             aria-label={`HEX for ${scale.baseColor}`}
             spellCheck={false}
-            className="h-8 min-w-0 rounded-full bg-[var(--chip)] px-3 type-mono text-[var(--text)] uppercase outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] tablet:w-[7.5rem]"
+            className="h-10 w-[7.5rem] shrink-0 rounded-full bg-[var(--chip)] px-3 type-mono text-[var(--text)] uppercase outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
           />
-        </div>
-        <SystemSwitch
-          value={scale.system}
-          label={`System for ${scale.baseColor}`}
-          onValueChange={(system) => onChange({ system })}
-          className="w-full tablet:w-[280px]"
-        />
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-1.5 tablet:flex tablet:flex-wrap [&>span]:w-full [&>span]:min-w-0 tablet:[&>span]:w-auto">
-          {COPY_ACTIONS.map((action) => (
-            <AppTooltip key={action.format} content={action.tooltip}>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                aria-label={action.ariaLabel}
-                className="w-full tablet:w-auto"
-                onClick={() => onCopy(action.format)}
-              >
-                {action.label}
-              </Button>
-            </AppTooltip>
-          ))}
-          <AppTooltip content="Delete scale">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={`Delete scale ${scale.baseColor}`}
-              onClick={onRemove}
-            >
-              <Trash2 />
-            </Button>
-          </AppTooltip>
+          <SystemSwitch
+            value={scale.system}
+            baseColor={scale.baseColor}
+            label={`System for ${scale.name || scale.baseColor}`}
+            onValueChange={(system) => onChange({ system })}
+          />
         </div>
       </div>
       <ColorScaleRow
         colors={scale.colors}
         stepKeys={stepKeys}
         baseIndex={baseIndex}
+        density={density}
+        selectedIndex={selectedStep}
+        surfaceCss={surfaceCss}
+        onSelectStep={onSelectStep}
         onCopiedHex={onCopiedHex}
         onCopyFailed={onCopyFailed}
       />
@@ -214,25 +315,116 @@ export function ColorGenerator() {
     boot.project.generation,
   )
   const [scales, setScales] = useState<ColorScale[]>(boot.project.scales)
-  const { toast, announce, clear } = useActionToast()
-  const [preview, setPreview] = useState(false)
+  const [density, setDensity] = useState<RampDensity>(() => loadRampDensity())
+  const [surface, setSurface] = useState<RampSurface>(() => loadRampSurface())
+  const [generationOpen, setGenerationOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [adjustCollapsed, setAdjustCollapsed] = useState(false)
+  const [mainTab, setMainTab] = useState<MainTab>('ramps')
+  const [selected, setSelected] = useState<{
+    scaleId: string
+    stepIndex: number
+  } | null>(null)
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [detailScaleId, setDetailScaleId] = useState<string | null>(null)
+  const { announce } = useActionToast()
   const [previewId, setPreviewId] = useState<string | null>(null)
+  const importRef = useRef<HTMLInputElement>(null)
   const baseColorTimer = useRef<number | null>(null)
   const settingsTimer = useRef<number | null>(null)
   const skipPersist = useRef(false)
 
-  const stepKeys = useMemo(() => stepKeysFor(settings), [settings])
-  const baseIndex = useMemo(() => baseStepIndex(settings), [settings])
+  const [tabScaleId, setTabScaleId] = useState<string | null>(null)
   const previewScale = scales.find((scale) => scale.id === previewId) ?? null
+  const surfaceMeta = rampSurfaceMeta(surface)
+  const selectedScale = selected
+    ? scales.find((s) => s.id === selected.scaleId) ?? null
+    : null
+  const selectedHex =
+    selectedScale && selected
+      ? selectedScale.colors[selected.stepIndex] ?? null
+      : null
+  const selectedBaseIndex = selectedScale
+    ? baseIndexFor(selectedScale.baseColor, settings)
+    : 0
+  const detailScale = detailScaleId
+    ? scales.find((s) => s.id === detailScaleId) ?? null
+    : null
+  const tabScale =
+    scales.find((s) => s.id === (tabScaleId ?? previewId ?? scales[0]?.id)) ??
+    scales[0] ??
+    null
+  const tabBaseIndex = tabScale
+    ? baseIndexFor(tabScale.baseColor, settings)
+    : 0
+  const tabStepKeys = tabScale
+    ? stepKeysFor(settings, tabBaseIndex)
+    : stepKeysFor(settings)
+
+  const openScaleDetail = (id: string) => {
+    setDetailScaleId(id)
+    window.history.pushState({ tintfieldDetail: id }, '')
+  }
+
+  const closeScaleDetail = () => {
+    setDetailScaleId(null)
+    if (window.history.state?.tintfieldDetail) {
+      window.history.back()
+    }
+  }
 
   useEffect(() => {
-    if (!preview || !previewScale) {
+    const onPop = () => {
+      if (detailScaleId) setDetailScaleId(null)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [detailScaleId])
+
+  const reorderScales = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0) return
+    setScales((prev) => {
+      if (from >= prev.length || to >= prev.length) return prev
+      const next = [...prev]
+      const [item] = next.splice(from, 1)
+      if (!item) return prev
+      next.splice(to, 0, item)
+      return next
+    })
+  }
+
+  useEffect(() => {
+    if (!previewScale) {
       clearThemePreview()
       return
     }
-    applyThemePreview(previewScale.colors, baseIndex)
+    applyThemePreview(
+      previewScale.colors,
+      baseIndexFor(previewScale.baseColor, settings),
+    )
     return () => clearThemePreview()
-  }, [preview, previewScale, baseIndex])
+  }, [previewScale, settings])
+
+  useEffect(() => {
+    if (previewId && !scales.some((scale) => scale.id === previewId)) {
+      setPreviewId(null)
+    }
+  }, [scales, previewId])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === '\\') {
+        event.preventDefault()
+        setAdjustCollapsed((v) => !v)
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'e') {
+        event.preventDefault()
+        if (scales.length > 0) setExportOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [scales.length])
 
   const applyProject = (project: HydratedProject, store: ProjectsStore) => {
     skipPersist.current = true
@@ -241,6 +433,8 @@ export function ColorGenerator() {
     setSettings(project.generation)
     setScales(project.scales)
     setProjects(listProjects(store))
+    setPreviewId(null)
+    setSelected(null)
   }
 
   const flushActiveProject = () => {
@@ -269,20 +463,14 @@ export function ColorGenerator() {
 
   useEffect(
     () => () => {
-      if (baseColorTimer.current != null) {
-        window.clearTimeout(baseColorTimer.current)
-      }
-      if (settingsTimer.current != null) {
-        window.clearTimeout(settingsTimer.current)
-      }
+      if (baseColorTimer.current != null) window.clearTimeout(baseColorTimer.current)
+      if (settingsTimer.current != null) window.clearTimeout(settingsTimer.current)
     },
     [],
   )
 
   const announceName = () => {
-    if (baseColorTimer.current != null) {
-      window.clearTimeout(baseColorTimer.current)
-    }
+    if (baseColorTimer.current != null) window.clearTimeout(baseColorTimer.current)
     baseColorTimer.current = window.setTimeout(() => {
       announce('Name updated')
       baseColorTimer.current = null
@@ -290,9 +478,7 @@ export function ColorGenerator() {
   }
 
   const announceBaseColor = () => {
-    if (baseColorTimer.current != null) {
-      window.clearTimeout(baseColorTimer.current)
-    }
+    if (baseColorTimer.current != null) window.clearTimeout(baseColorTimer.current)
     baseColorTimer.current = window.setTimeout(() => {
       announce('Base color updated')
       baseColorTimer.current = null
@@ -300,9 +486,7 @@ export function ColorGenerator() {
   }
 
   const announceSettingsUpdated = () => {
-    if (settingsTimer.current != null) {
-      window.clearTimeout(settingsTimer.current)
-    }
+    if (settingsTimer.current != null) window.clearTimeout(settingsTimer.current)
     settingsTimer.current = window.setTimeout(() => {
       announce('Settings updated')
       settingsTimer.current = null
@@ -318,21 +502,21 @@ export function ColorGenerator() {
     announceSettingsUpdated()
   }
 
+  const handleDensityChange = (next: RampDensity) => {
+    setDensity(next)
+    saveRampDensity(next)
+  }
+
+  const handleSurfaceChange = (next: RampSurface) => {
+    setSurface(next)
+    saveRampSurface(next)
+  }
+
   const handleCreateProject = () => {
     flushActiveProject()
     const { store, project } = createProject('Untitled')
     applyProject(project, store)
-    announce('Project created')
-  }
-
-  const handleRenameProject = () => {
-    const next = window.prompt('Rename project', projectName)
-    if (next == null) return
-    const result = renameProject(projectId, next)
-    if (!result) return
-    setProjectName(result.project.name)
-    setProjects(listProjects(result.store))
-    announce('Project renamed')
+    announce('Set created')
   }
 
   const handleSwitchProject = (id: string) => {
@@ -341,23 +525,46 @@ export function ColorGenerator() {
     const result = switchProject(id)
     if (!result) return
     applyProject(result.project, result.store)
-    announce('Project opened')
+    announce('Set opened')
   }
 
   const handleDeleteProject = () => {
     const result = deleteProject(projectId)
     applyProject(result.project, result.store)
-    announce('Project deleted')
+    announce('Set deleted')
   }
 
-  const addScale = () => {
-    setScales((prev) => [...prev, createScale(undefined, undefined, settings)])
+  const addScale = (baseColor: string, system: ColorSystem = 'saturated') => {
+    setScales((prev) => [...prev, createScale(baseColor, system, settings)])
     announce('Scale added')
   }
 
   const removeScale = (id: string) => {
+    const removed = scales.find((scale) => scale.id === id)
+    if (!removed) return
+    const index = scales.findIndex((scale) => scale.id === id)
     setScales((prev) => prev.filter((scale) => scale.id !== id))
-    announce('Scale removed')
+    if (previewId === id) setPreviewId(null)
+    if (selected?.scaleId === id) setSelected(null)
+    sonnerToast.success('Scale deleted', {
+      duration: 5000,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          setScales((prev) => {
+            const next = [...prev]
+            next.splice(Math.min(index, next.length), 0, removed)
+            return next
+          })
+        },
+      },
+    })
+  }
+
+  const togglePreview = (id: string) => {
+    const next = previewId === id ? null : id
+    setPreviewId(next)
+    announce(next ? 'Preview on' : 'Preview off')
   }
 
   const updateScale = (
@@ -404,188 +611,535 @@ export function ColorGenerator() {
     }
   }
 
-  const copyAllPalettes = async () => {
+  const handleShare = async () => {
+    const url = buildShareUrl({
+      v: 1,
+      name: projectName,
+      generation: settings,
+      scales: scales.map((s) => ({
+        name: s.name,
+        baseColor: s.baseColor,
+        system: s.system,
+      })),
+    })
     try {
-      await navigator.clipboard.writeText(
-        projectToJson(projectName, scales, settings),
-      )
-      navigator.vibrate?.(40)
-      announce('JSON copied')
-    } catch {
-      announce('Copy failed', 'error')
+      const result = await shareOrCopyUrl(url)
+      announce(result === 'shared' ? 'Shared' : 'Link copied')
+    } catch (error) {
+      if ((error as Error).name !== 'AbortError') announce('Share failed', 'error')
     }
   }
 
-  const exportPalettes = () => {
-    downloadProjectJson(projectName, scales, settings)
-    announce('Exported')
+  const handleImportFile = async (file: File) => {
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text) as {
+        name?: string
+        generation?: GenerationSettings
+        scales?: { name?: string; baseColor: string; system: ColorSystem }[]
+      }
+      if (!Array.isArray(parsed.scales) || parsed.scales.length === 0) {
+        announce('Invalid JSON', 'error')
+        return
+      }
+      const generation = normalizeGenerationSettings(parsed.generation)
+      setProjectName(parsed.name?.trim() || projectName)
+      setSettings(generation)
+      setScales(
+        parsed.scales.map((s) => ({
+          ...createScale(s.baseColor, s.system, generation),
+          name: s.name?.trim() || suggestScaleName(s.baseColor),
+        })),
+      )
+      announce('Imported')
+    } catch {
+      announce('Import failed', 'error')
+    }
   }
 
   const onCopiedHex = () => announce('Copied HEX')
   const onCopyFailed = () => announce('Copy failed', 'error')
 
+  const renderGeneration = (opts?: {
+    showDensity?: boolean
+    hideTitle?: boolean
+    rampPreviews?: boolean
+  }) => (
+    <GenerationSettingsPanel
+      settings={settings}
+      onChange={handleSettingsChange}
+      density={density}
+      onDensityChange={handleDensityChange}
+      showDensity={opts?.showDensity ?? false}
+      hideTitle={opts?.hideTitle}
+      rampPreviews={
+        opts?.rampPreviews
+          ? scales.map((s) => ({
+              id: s.id,
+              name: s.name,
+              colors: s.colors,
+            }))
+          : undefined
+      }
+    />
+  )
+
+  const showEntry = scales.length === 0
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[var(--bg)] pt-[env(safe-area-inset-top)]">
-        <div className="mx-auto grid w-full max-w-[90rem] min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 px-4 py-2.5 tablet:flex tablet:h-14 tablet:gap-3 tablet:px-6 tablet:py-0 desktop:px-8">
+        <div className="mx-auto flex h-14 w-full min-w-0 items-center gap-2 px-4 tablet:px-6 desktop:px-8">
           <p className="type-heading shrink-0">Tintfield</p>
-
           <ProjectSwitcher
             activeId={projectId}
             activeName={projectName}
             projects={projects}
+            scales={scales.map((s) => ({
+              id: s.id,
+              name: s.name,
+              baseColor: s.baseColor,
+            }))}
             onCreate={handleCreateProject}
-            onRename={handleRenameProject}
             onSwitch={handleSwitchProject}
             onDelete={handleDeleteProject}
+            onRename={(name) => {
+              setProjectName(name)
+              announce('Set renamed')
+            }}
+            onFocusScale={(id) => {
+              document.getElementById(`scale-${id}`)?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              })
+            }}
+            onImport={() => importRef.current?.click()}
+            className="min-w-0 flex-1"
           />
-
-          <div className="col-start-3 row-start-1 tablet:col-auto tablet:row-auto">
-            <AppTooltip content="Export active project as JSON">
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                disabled={scales.length === 0}
-                aria-label="Export active project as JSON"
-                onClick={exportPalettes}
-              >
-                <Download />
-                <span className="hidden tablet:inline">Export</span>
-              </Button>
-            </AppTooltip>
-          </div>
-
-          <div className="contents">
-            <Button
-              type="button"
-              variant={preview ? 'secondary' : 'ghost'}
-              size="sm"
-              aria-pressed={preview}
-              disabled={scales.length === 0}
-              aria-label={preview ? 'Turn preview off' : 'Preview the interface with a scale'}
-              className="col-start-2 row-start-2 justify-self-end tablet:col-auto tablet:row-auto"
-              onClick={() => {
-                setPreview((on) => {
-                  const next = !on
-                  if (next) {
-                    setPreviewId((current) =>
-                      scales.some((scale) => scale.id === current)
-                        ? current
-                        : (scales[0]?.id ?? null),
-                    )
-                  }
-                  return next
-                })
-              }}
-            >
-              {preview ? 'Preview on' : 'Preview'}
-            </Button>
-            {preview && scales.length > 0 && (
-              <div className="col-span-3 row-start-3 min-w-0 tablet:col-auto tablet:row-auto tablet:w-[11rem] [&>div]:w-full">
-                <Select
-                  aria-label="Scale used for the preview"
-                  size="sm"
-                  value={previewScale?.id ?? scales[0]?.id}
-                  onValueChange={setPreviewId}
-                  className="h-8 w-full"
-                options={scales.map((scale) => ({
-                  value: scale.id,
-                  label: scale.name.trim() || scale.baseColor,
-                  swatch: scale.colors[baseIndex] ?? scale.baseColor,
-                }))}
-                />
-              </div>
-            )}
-            <div className="col-start-3 row-start-2 tablet:col-auto tablet:row-auto">
-              <AppTooltip content="Copy active project as JSON">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={scales.length === 0}
-                  aria-label="Copy active project as JSON"
-                  onClick={copyAllPalettes}
-                >
-                  <Copy />
-                  <span className="hidden tablet:inline">Copy</span>
-                </Button>
-              </AppTooltip>
-            </div>
-          </div>
+          <input
+            ref={importRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) void handleImportFile(file)
+              event.target.value = ''
+            }}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Share set"
+            onClick={() => void handleShare()}
+            disabled={scales.length === 0}
+          >
+            <Share2 />
+          </Button>
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            aria-label="Export set"
+            disabled={scales.length === 0}
+            onClick={() => setExportOpen(true)}
+            className="hidden tablet:inline-flex"
+          >
+            <Download />
+            Export
+          </Button>
+          <SurfaceSwitcher value={surface} onChange={handleSurfaceChange} />
         </div>
       </header>
 
-      <main
-        className={
-          'mx-auto flex w-full min-w-0 max-w-[90rem] flex-1 flex-col gap-5 px-4 py-5 ' +
-          'tablet:gap-6 tablet:px-6 tablet:py-6 desktop:grid ' +
-          'desktop:grid-cols-[minmax(17.5rem,22rem)_minmax(0,1fr)] desktop:items-start ' +
-          'desktop:gap-6 desktop:px-8 desktop:py-6 ' +
-          'desktop-plus:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)] desktop-plus:gap-8'
-        }
-      >
-        <aside
-          className={
-            'scrollbar-quiet min-w-0 ' +
-            'desktop:sticky desktop:top-[calc(3.5rem+1.5rem)] ' +
-            'desktop:max-h-[calc(100svh-3.5rem-3rem)] desktop:overflow-y-auto ' +
-            'desktop:overscroll-contain'
-          }
+      {showEntry ? (
+        <EntryState onStart={(hex) => addScale(hex)} />
+      ) : (
+        <main
+          className={cn(
+            'mx-auto flex w-full min-w-0 flex-1 flex-col gap-0',
+            'desktop-plus:grid desktop-plus:grid-cols-[auto_minmax(0,1fr)_auto] desktop-plus:items-stretch',
+          )}
         >
-          <GenerationSettingsPanel
-            settings={settings}
-            onChange={handleSettingsChange}
-          />
-        </aside>
+          {/* Adjust panel — desktop wide */}
+          <aside
+            className={cn(
+              'hidden border-[var(--line)] desktop-plus:block',
+              adjustCollapsed
+                ? 'w-0 overflow-hidden border-0 p-0'
+                : 'w-[280px] border-r px-5 py-6',
+            )}
+          >
+            {!adjustCollapsed ? (
+              <>
+                {renderGeneration()}
+                {previewScale || scales[0] ? (
+                  <UiRampPreview
+                    colors={(previewScale ?? scales[0]!).colors}
+                    baseIndex={baseIndexFor(
+                      (previewScale ?? scales[0]!).baseColor,
+                      settings,
+                    )}
+                  />
+                ) : null}
+              </>
+            ) : null}
+          </aside>
 
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="type-heading">
-              {scales.length === 0
-                ? 'Scales'
-                : `${scales.length} scale${scales.length === 1 ? '' : 's'}`}
-            </h2>
-            <Button type="button" size="sm" onClick={addScale}>
-              <Plus />
-              Add scale
+          {/* Main workspace */}
+          <section
+            className="flex min-h-0 min-w-0 flex-1 flex-col"
+            style={{ backgroundColor: surfaceMeta.css, color: surfaceMeta.ink }}
+          >
+            <div
+              className="flex flex-wrap items-center gap-2 border-b px-4 py-3 tablet:px-6"
+              style={{ borderColor: 'color-mix(in oklab, currentColor 14%, transparent)' }}
+            >
+              {(
+                [
+                  ['ramps', 'Ramps'],
+                  ['preview', 'Preview'],
+                  ['contrast', 'Contrast'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setMainTab(id)}
+                  className={cn(
+                    'type-label rounded-full px-3 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
+                    mainTab === id
+                      ? 'bg-[var(--primary)] text-[var(--primary-ink)]'
+                      : 'text-current opacity-70 hover:opacity-100',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+              <div className="ml-auto hidden items-center gap-1 tablet:flex">
+                {(['compact', 'detail'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => handleDensityChange(mode)}
+                    className={cn(
+                      'type-caption rounded-full px-2.5 py-1 capitalize outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
+                      density === mode
+                        ? 'bg-[var(--primary)] text-[var(--primary-ink)]'
+                        : 'opacity-60 hover:opacity-100',
+                    )}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 py-5 pb-24 tablet:px-6 tablet:pb-8 desktop:px-8">
+              {mainTab === 'ramps' ? (
+                <>
+                  {density === 'detail' ? (
+                    <ContrastLegend className="type-caption opacity-70" />
+                  ) : null}
+                  <ul className="flex flex-col gap-8">
+                    {scales.map((scale, index) => {
+                      const scaleBase = baseIndexFor(scale.baseColor, settings)
+                      const scaleKeys = stepKeysFor(settings, scaleBase)
+                      return (
+                      <ScaleEditor
+                        key={scale.id}
+                        scale={scale}
+                        stepKeys={scaleKeys}
+                        baseIndex={scaleBase}
+                        density={density}
+                        index={index}
+                        dragIndex={dragIndex}
+                        surfaceCss={surfaceMeta.css}
+                        selectedStep={
+                          selected?.scaleId === scale.id
+                            ? selected.stepIndex
+                            : null
+                        }
+                        onSelectStep={(stepIndex) =>
+                          setSelected({ scaleId: scale.id, stepIndex })
+                        }
+                        onOpenDetail={() => openScaleDetail(scale.id)}
+                        onDragStart={(from) => setDragIndex(from)}
+                        onDragOver={(event, overIndex) => {
+                          event.preventDefault()
+                          event.dataTransfer.dropEffect = 'move'
+                          if (dragIndex == null || dragIndex === overIndex) return
+                        }}
+                        onDrop={(to) => {
+                          if (dragIndex == null) return
+                          reorderScales(dragIndex, to)
+                          setDragIndex(null)
+                          announce('Order updated')
+                        }}
+                        onDragEnd={() => setDragIndex(null)}
+                        previewActive={previewId === scale.id}
+                        onChange={(patch) => updateScale(scale.id, patch)}
+                        onCopy={(format) => copyScale(scale, format)}
+                        onRemove={() => removeScale(scale.id)}
+                        onTogglePreview={() => togglePreview(scale.id)}
+                        onCopiedHex={onCopiedHex}
+                        onCopyFailed={onCopyFailed}
+                      />
+                      )
+                    })}
+                  </ul>
+                  <NewScaleForm onAdd={addScale} />
+                </>
+              ) : null}
+
+              {mainTab === 'preview' && tabScale ? (
+                <div className="flex flex-col gap-4">
+                  <label className="flex max-w-xs flex-col gap-1.5">
+                    <span className="type-caption text-current opacity-60">
+                      Primary
+                    </span>
+                    <select
+                      className="type-label h-9 rounded-full border border-current/20 bg-transparent px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                      value={tabScale.id}
+                      onChange={(event) => setTabScaleId(event.target.value)}
+                      aria-label="Primary scale for preview"
+                    >
+                      {scales.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name || s.baseColor}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="grid gap-6 tablet:grid-cols-2">
+                    <div className="rounded-[var(--radius-md)] bg-white p-5 text-black">
+                      <p className="type-caption mb-3 opacity-60">Light</p>
+                      <UiRampPreview
+                        colors={tabScale.colors}
+                        baseIndex={tabBaseIndex}
+                        className="mt-0 border-0 pt-0"
+                      />
+                    </div>
+                    <div className="rounded-[var(--radius-md)] bg-[#121212] p-5 text-white">
+                      <p className="type-caption mb-3 opacity-60">Dark</p>
+                      <UiRampPreview
+                        colors={tabScale.colors}
+                        baseIndex={tabBaseIndex}
+                        className="mt-0 border-0 pt-0"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {mainTab === 'contrast' && tabScale ? (
+                <div className="flex flex-col gap-4">
+                  <label className="flex max-w-xs flex-col gap-1.5">
+                    <span className="type-caption opacity-60">Scale</span>
+                    <select
+                      className="type-label h-9 rounded-full border border-current/20 bg-transparent px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                      value={tabScale.id}
+                      onChange={(event) => setTabScaleId(event.target.value)}
+                      aria-label="Scale for contrast table"
+                    >
+                      {scales.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name || s.baseColor}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="overflow-x-auto">
+                    <table className="type-caption w-full border-collapse text-left">
+                      <thead>
+                        <tr>
+                          <th className="p-2 opacity-60">Step</th>
+                          <th className="p-2 opacity-60">White</th>
+                          <th className="p-2 opacity-60">Black</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tabScale.colors.map((hex, i) => {
+                          const c = contrastAgainstWhiteAndBlack(hex)
+                          return (
+                            <tr
+                              key={tabStepKeys[i]}
+                              className="border-t border-current/10"
+                            >
+                              <td className="p-2">
+                                <span
+                                  className="mr-2 inline-block size-4 rounded-sm align-middle"
+                                  style={{ backgroundColor: hex }}
+                                />
+                                {tabStepKeys[i]}
+                              </td>
+                              <td className="p-2">
+                                <span className="type-label">{c.onWhite.mark}</span>
+                              </td>
+                              <td className="p-2">
+                                <span className="type-label">{c.onBlack.mark}</span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </section>
+
+          {/* Inspector — wide desktop; collapsed when empty */}
+          <aside
+            className={cn(
+              'hidden border-l border-[var(--line)] bg-[var(--bg)] text-[var(--text)] desktop-plus:block',
+              selectedHex ? 'w-[280px] px-5 py-6' : 'w-0 overflow-hidden border-0 p-0',
+            )}
+          >
+            {selectedScale && selectedHex && selected ? (
+              <StepInspector
+                hex={selectedHex}
+                step={
+                  stepKeysFor(settings, selectedBaseIndex)[selected.stepIndex] ??
+                  String(selected.stepIndex)
+                }
+                isBase={selected.stepIndex === selectedBaseIndex}
+                neighbors={selectedScale.colors}
+                stepIndex={selected.stepIndex}
+                stepCount={selectedScale.colors.length}
+                onStepChange={(stepIndex) =>
+                  setSelected({ scaleId: selected.scaleId, stepIndex })
+                }
+                onClose={() => setSelected(null)}
+                onCopy={(text, label) => {
+                  void navigator.clipboard.writeText(text).then(
+                    () => announce(`${label} copied`),
+                    () => announce('Copy failed', 'error'),
+                  )
+                }}
+              />
+            ) : null}
+          </aside>
+        </main>
+      )}
+
+      {/* Mobile / tablet adjust sheet */}
+      <MobileSheet
+        open={generationOpen}
+        title="Adjust"
+        maxHeightClass="max-h-[55svh]"
+        onClose={() => setGenerationOpen(false)}
+      >
+        {renderGeneration({
+          showDensity: false,
+          hideTitle: true,
+          rampPreviews: true,
+        })}
+      </MobileSheet>
+
+      {/* Mobile bottom bar */}
+      {!showEntry ? (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--line)] bg-[var(--bg)] pb-[env(safe-area-inset-bottom)] tablet:hidden">
+          <div className="mx-auto flex h-12 max-w-lg items-stretch gap-2 px-4 py-0">
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-12 flex-1 rounded-none"
+              onClick={() => setGenerationOpen(true)}
+            >
+              <SlidersHorizontal />
+              Adjust
+            </Button>
+            <Button
+              type="button"
+              variant="default"
+              className="h-12 flex-1 rounded-none"
+              onClick={() => setExportOpen(true)}
+            >
+              <Download />
+              Export
             </Button>
           </div>
+        </div>
+      ) : null}
 
-          {scales.length === 0 ? (
-            <p className="type-body mt-4 text-[var(--text-muted)]">
-              Add a scale, then edit its base color.
-            </p>
-          ) : (
-            <ul>
-              {scales.map((scale) => (
-                <ScaleEditor
-                  key={scale.id}
-                  scale={scale}
-                  stepKeys={stepKeys}
-                  baseIndex={baseIndex}
-                  onChange={(patch) => updateScale(scale.id, patch)}
-                  onCopy={(format) => copyScale(scale, format)}
-                  onRemove={() => removeScale(scale.id)}
-                  onCopiedHex={onCopiedHex}
-                  onCopyFailed={onCopyFailed}
-                />
-              ))}
-            </ul>
+      {/* Inspector sheet below desktop-plus */}
+      {selectedScale && selectedHex && selected ? (
+        <div className="desktop-plus:hidden">
+          <MobileSheet
+            open
+            title="Inspector"
+            maxHeightClass="max-h-[min(70svh,36rem)]"
+            onClose={() => setSelected(null)}
+          >
+            <StepInspector
+              hex={selectedHex}
+              step={
+                stepKeysFor(settings, selectedBaseIndex)[selected.stepIndex] ??
+                String(selected.stepIndex)
+              }
+              isBase={selected.stepIndex === selectedBaseIndex}
+              neighbors={selectedScale.colors}
+              stepIndex={selected.stepIndex}
+              stepCount={selectedScale.colors.length}
+              onStepChange={(stepIndex) =>
+                setSelected({ scaleId: selected.scaleId, stepIndex })
+              }
+              onCopy={(text, label) => {
+                void navigator.clipboard.writeText(text).then(
+                  () => announce(`${label} copied`),
+                  () => announce('Copy failed', 'error'),
+                )
+              }}
+            />
+          </MobileSheet>
+        </div>
+      ) : null}
+
+      {detailScale ? (
+        <MobileScaleDetail
+          name={detailScale.name}
+          baseColor={detailScale.baseColor}
+          system={detailScale.system}
+          colors={detailScale.colors}
+          stepKeys={stepKeysFor(
+            settings,
+            baseIndexFor(detailScale.baseColor, settings),
           )}
-        </section>
-      </main>
-
-      {toast ? (
-        <BasicToast
-          key={toast.id}
-          message={toast.message}
-          type={toast.type}
-          duration={3000}
-          onClose={clear}
-          className="!top-auto bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 right-4 max-w-none tablet:right-auto tablet:w-80"
+          baseIndex={baseIndexFor(detailScale.baseColor, settings)}
+          onBack={closeScaleDetail}
+          onChange={(patch) => updateScale(detailScale.id, patch)}
+          onCopyHex={(hex) => {
+            void navigator.clipboard.writeText(hex.toUpperCase()).then(
+              () => {
+                navigator.vibrate?.(40)
+                onCopiedHex()
+              },
+              () => onCopyFailed(),
+            )
+          }}
+          onInspect={(stepIndex) => {
+            setSelected({ scaleId: detailScale.id, stepIndex })
+          }}
+          onDelete={() => {
+            closeScaleDetail()
+            removeScale(detailScale.id)
+          }}
         />
       ) : null}
+
+      <ExportDialog
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        setName={projectName}
+        scales={scales}
+        settings={settings}
+        projectJson={projectToJson(projectName, scales, settings)}
+        onCopied={(label) => announce(label === 'Exported' ? 'Exported' : `${label} copied`)}
+        onFailed={() => announce('Copy failed', 'error')}
+      />
     </div>
   )
 }

@@ -23,7 +23,7 @@ Always use tokens from `src/design-system/`. Never hardcode font family, size, w
 
 ## Breakpoints
 
-Mobile (base) · `tablet` 48rem · `desktop` 64rem · `desktop-plus` 90rem. Prefer these Tailwind variants over `sm`/`md`/`lg` for layout.
+Mobile (base) · `tablet` 48rem (768) · `desktop` 80rem (1280) · `desktop-plus` 100rem (1600). Prefer these Tailwind variants over `sm`/`md`/`lg` for layout.
 
 ## Tokens
 
@@ -35,7 +35,8 @@ Color, space, radius, shadow, and motion live as CSS variables. Keep semantic al
 - No eyebrow labels with wide tracking, marketing chips, star counts, or decorative badges (e.g. “OKLCH”) in chrome.
 - No gradient orbs, grain overlays, glassmorphism, gradient text, or purple/glow “AI default” themes.
 - No cards. Settings and scales are flat sections, separated by space and a hairline. Do not wrap them in filled panels, nested stages, or repeated radius and shadow.
-- Do not animate the page shell: no entrance cascades, floating blobs, or SmoothUI demo motion. Liquid gooey stays only on press/hover, system indicator trail, and the subtle bridge between neighboring circles.
-- Editor layout: desktop (64rem+) is two columns — sticky editor left, scales right — so ramps stay visible while editing. Below desktop: single column. No third column at desktop-plus.
+- Do not animate the page shell: no entrance cascades or floating blobs. UI primitives come from **shadcn/ui** (Radix + Tailwind) restyled with Tintfield tokens. Liquid gooey stays only on press/hover for controls — not as a shared fill bridging shade circles. Color system (Saturated / Fade / Pale) is a quiet Select, not a segmented hero control.
+- Prefer `src/components/ui/` shadcn primitives (`Button`, `Select`, `Slider`, `Tooltip`, `DropdownMenu`, `Toaster`). Do not reintroduce SmoothUI. Scale copy formats use a dropdown, not a gooey morph menu.
+- Editor layout: wide (`desktop-plus`) is three zones — Adjust panel · ramps · inspector. Below that: full-width ramps with Adjust / Inspector as sheets. Ramp strips are continuous rectangles, not circles.
 - Quiet chrome: direct labels, color and ramp are the subject. Keep Geist tokens and the dark minimal palette; do not restyle into a new trendy theme.
 - Toasts must not cover the scales column (prefer bottom-left / away from the main ramp view).
