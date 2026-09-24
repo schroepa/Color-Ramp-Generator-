@@ -2,7 +2,7 @@ import { useId } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Surface } from '@/components/ui/surface'
+import ExposureSlider from '@/components/ui/smoothui/exposure-slider'
 import {
   type GenerationSettings,
   STEPS_MAX,
@@ -10,7 +10,6 @@ import {
   totalSteps,
 } from '@/lib/generation-settings'
 import { cn } from '@/lib/utils'
-
 type GenerationSettingsPanelProps = {
   settings: GenerationSettings
   onChange: (patch: Partial<GenerationSettings>) => void
@@ -58,29 +57,19 @@ function SettingsControl({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-2">
       <Label htmlFor={id}>{label}</Label>
 
-      <div className="flex items-center gap-2">
-        <input
+      <div className="flex min-w-0 items-center gap-2">
+        <ExposureSlider
           id={id}
-          type="range"
+          label={label}
+          value={value}
           min={min}
           max={max}
           step={step}
-          value={value}
-          onChange={(event) =>
-            onChange(snapToStep(Number(event.target.value), step, min, max))
-          }
-          aria-valuetext={display}
-          className={cn(
-            'h-8 min-w-0 flex-1 cursor-pointer appearance-none bg-transparent',
-            '[&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-[var(--chip)]',
-            '[&::-moz-range-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-[var(--chip)]',
-            '[&::-webkit-slider-thumb]:mt-[-5px] [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--text)]',
-            '[&::-moz-range-thumb]:size-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-[var(--text)]',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
-          )}
+          display={display}
+          onChange={onChange}
         />
 
         <div className="flex shrink-0 items-center gap-1">
@@ -94,12 +83,6 @@ function SettingsControl({
           >
             <Minus />
           </Button>
-          <span
-            className="type-mono min-w-10 text-center text-[var(--text-muted)] tabular-nums"
-            aria-hidden
-          >
-            {display}
-          </span>
           <Button
             type="button"
             variant="secondary"
@@ -129,7 +112,7 @@ export function GenerationSettingsPanel({
   const count = totalSteps(settings)
 
   return (
-    <Surface aria-label="Generation settings" className={className}>
+    <section aria-label="Generation settings" className={cn('min-w-0', className)}>
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="type-heading">Generation</h2>
         <p className="type-caption text-[var(--text-faint)]">
@@ -187,6 +170,6 @@ export function GenerationSettingsPanel({
           onChange={(darkestLightness) => onChange({ darkestLightness })}
         />
       </div>
-    </Surface>
+    </section>
   )
 }

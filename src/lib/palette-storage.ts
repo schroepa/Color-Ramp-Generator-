@@ -15,6 +15,8 @@ const VALID_SYSTEMS = new Set<ColorSystem>(['saturated', 'fade', 'pale'])
 
 export type PersistedPalette = {
   id: string
+  /** User-facing scale name. Empty until named. */
+  name?: string
   baseColor: string
   system: ColorSystem
 }
@@ -24,6 +26,7 @@ export type PaletteExport = PersistedPalette & {
 }
 
 export type ScaleLike = PersistedPalette & {
+  name: string
   colors: string[]
 }
 
@@ -51,6 +54,7 @@ export function hydrateScale(
   const system = VALID_SYSTEMS.has(palette.system) ? palette.system : 'saturated'
   return {
     id: palette.id,
+    name: typeof palette.name === 'string' ? palette.name : '',
     baseColor,
     system,
     colors: generateScaleColors(baseColor, system, settings),
@@ -83,8 +87,9 @@ export function loadScales(
 export function saveScales(scales: PersistedPalette[]): void {
   const payload: StoredPayload = {
     version: 1,
-    scales: scales.map(({ id, baseColor, system }) => ({
+    scales: scales.map(({ id, name, baseColor, system }) => ({
       id,
+      name: name ?? '',
       baseColor,
       system,
     })),
@@ -98,6 +103,7 @@ export function toPaletteExport(
 ): PaletteExport {
   return {
     id: scale.id,
+    name: scale.name ?? '',
     baseColor: scale.baseColor,
     system: scale.system,
     steps: scaleToStepRecord(scale.colors, settings),

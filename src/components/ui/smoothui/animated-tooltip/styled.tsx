@@ -109,7 +109,9 @@ export function StyledAnimatedTooltip({
       onMouseEnter={isHoverDevice ? show : undefined}
       onMouseLeave={isHoverDevice ? hide : undefined}
     >
-      <span aria-describedby={isVisible ? tooltipId : undefined}>{children}</span>
+      <span className="flex w-full min-w-0" aria-describedby={isVisible ? tooltipId : undefined}>
+        {children}
+      </span>
       <AnimatePresence>
         {isVisible ? (
           <motion.span

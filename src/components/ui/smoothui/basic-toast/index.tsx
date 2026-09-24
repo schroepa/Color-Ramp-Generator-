@@ -89,7 +89,7 @@ export default function BasicToast({
             shouldReduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }
           }
           className={cn(
-            'pointer-events-auto fixed top-4 right-4 left-4 z-50 flex max-w-sm items-center gap-3 rounded-[var(--radius-lg)] border p-4 sm:left-auto sm:w-80',
+            'pointer-events-auto fixed top-4 right-4 left-4 z-50 flex max-w-sm items-center gap-3 rounded-[var(--radius-lg)] border p-4 tablet:left-auto tablet:w-80',
             toastClasses[type],
             className,
           )}

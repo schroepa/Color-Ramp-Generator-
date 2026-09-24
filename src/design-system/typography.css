@@ -64,3 +64,11 @@
   font-weight: var(--type-mono-weight);
   font-variant-numeric: tabular-nums;
 }
+
+/* Text fields stay at body size on phones so focusing one does not zoom the page. */
+@media (width < 48rem) {
+  input.type-label,
+  input.type-mono {
+    font-size: max(1rem, var(--type-body-size));
+  }
+}

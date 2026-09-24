@@ -11,6 +11,7 @@ type SystemSwitchProps = {
   value: ColorSystem
   onValueChange: (value: ColorSystem) => void
   label?: string
+  className?: string
 }
 
 type SystemTabProps = {
@@ -89,6 +90,7 @@ export function SystemSwitch({
   value,
   onValueChange,
   label = 'Color system',
+  className,
 }: SystemSwitchProps) {
   const layoutId = useId()
   const index = Math.max(
@@ -126,7 +128,10 @@ export function SystemSwitch({
     <div
       role="tablist"
       aria-label={label}
-      className="relative grid h-9 w-full min-w-[248px] grid-cols-3 rounded-full bg-[var(--chip)] p-1 tablet:w-[280px]"
+      className={cn(
+        'relative grid h-9 w-full min-w-0 grid-cols-3 rounded-full bg-[var(--chip)] p-1',
+        className,
+      )}
     >
       <div aria-hidden className="pointer-events-none absolute inset-1">
         <Liquid

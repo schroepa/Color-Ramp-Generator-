@@ -68,8 +68,9 @@ function isPersistedPalette(value: unknown): value is PersistedPalette {
 }
 
 function stripScales(scales: PersistedPalette[]): PersistedPalette[] {
-  return scales.map(({ id, baseColor, system }) => ({
+  return scales.map(({ id, name, baseColor, system }) => ({
     id,
+    name: typeof name === 'string' ? name : '',
     baseColor: normalizeHex(baseColor) ?? '#0d7377',
     system: VALID_SYSTEMS.has(system) ? system : 'saturated',
   }))

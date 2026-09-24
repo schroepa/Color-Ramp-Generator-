@@ -45,7 +45,7 @@ function ProjectSelectTrigger({
       contrast={18}
       fill="var(--chip)"
       filterPadding={14}
-      className="relative min-w-0 shrink [&_[data-gooey-svg]]:pointer-events-none"
+      className="relative col-start-2 row-start-1 w-full min-w-0 tablet:col-auto tablet:row-auto tablet:w-auto [&_[data-gooey-svg]]:pointer-events-none"
     >
       <Liquid.Item
         scale={liquidScale}
@@ -59,7 +59,7 @@ function ProjectSelectTrigger({
         <SelectTrigger
           aria-label="Active project"
           className={cn(
-            'h-8 min-h-8 w-[min(100%,11rem)] min-w-0 border-[var(--line)] bg-[var(--chip)] px-2.5 type-label text-[var(--text)] tablet:w-[min(100%,14rem)]',
+            'h-8 min-h-8 w-full min-w-0 border-[var(--line)] bg-[var(--chip)] px-2.5 type-label text-[var(--text)] tablet:w-[min(100%,14rem)]',
             className,
           )}
           onPointerEnter={bind.onPointerEnter}
@@ -94,10 +94,7 @@ export function ProjectSwitcher({
 
   return (
     <div
-      className={cn(
-        'flex min-w-0 max-w-full items-center gap-1.5 tablet:gap-2',
-        className,
-      )}
+      className={cn('contents', className)}
       role="group"
       aria-label="Projects"
     >
@@ -112,41 +109,43 @@ export function ProjectSwitcher({
         </SelectContent>
       </Select>
 
-      <AppTooltip content="New project">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="New project"
-          onClick={onCreate}
-        >
-          <Plus />
-        </Button>
-      </AppTooltip>
+      <div className="col-start-1 row-start-2 flex items-center gap-1.5 tablet:col-auto tablet:row-auto tablet:ml-1">
+        <AppTooltip content="New project">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="New project"
+            onClick={onCreate}
+          >
+            <Plus />
+          </Button>
+        </AppTooltip>
 
-      <AppTooltip content="Rename project">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Rename project"
-          onClick={onRename}
-        >
-          <Pencil />
-        </Button>
-      </AppTooltip>
+        <AppTooltip content="Rename project">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Rename project"
+            onClick={onRename}
+          >
+            <Pencil />
+          </Button>
+        </AppTooltip>
 
-      <AppTooltip content="Delete project">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Delete project"
-          onClick={onDelete}
-        >
-          <Trash2 />
-        </Button>
-      </AppTooltip>
+        <AppTooltip content="Delete project">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Delete project"
+            onClick={onDelete}
+          >
+            <Trash2 />
+          </Button>
+        </AppTooltip>
+      </div>
     </div>
   )
 }

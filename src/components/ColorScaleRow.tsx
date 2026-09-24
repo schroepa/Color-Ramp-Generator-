@@ -2,15 +2,16 @@ import { useEffect, useState } from 'react'
 import { Liquid } from 'liquid-gooey'
 import { useReducedMotion } from 'motion/react'
 import { Check } from 'lucide-react'
+import { contrastAgainstWhiteAndBlack } from '@/lib/contrast'
 import { solidSwatchUrl } from '@/lib/swatch'
 import { cn } from '@/lib/utils'
 
 /**
  * Shared column width: circle buttons use horizontal margin so their flex
  * item width matches this label cell (Liquid.Item is display:contents).
- * size-10 (2.5rem) + mx-2 (0.5rem × 2) = 3.5rem.
+ * size-10 (2.5rem) + mx-5 (1.25rem × 2) = 5rem, so HEX and contrast stay on one line.
  */
-const CELL = 'w-14 shrink-0'
+const CELL = 'w-20 shrink-0'
 
 type ColorSwatchProps = {
   hex: string
@@ -33,6 +34,7 @@ function ColorSwatch({
 }: ColorSwatchProps) {
   const [copied, setCopied] = useState(false)
   const shouldReduceMotion = useReducedMotion()
+  const contrast = contrastAgainstWhiteAndBlack(hex)
 
   useEffect(() => {
     if (!copied) return
@@ -60,9 +62,9 @@ function ColorSwatch({
         onPointerLeave={() => onLift(false)}
         onFocus={() => onLift(true)}
         onBlur={() => onLift(false)}
-        aria-label={`Copy ${hex.toUpperCase()}, step ${step}`}
+        aria-label={`Copy ${hex.toUpperCase()}, step ${step}. ${contrast.onWhite.detail} ${contrast.onBlack.detail}`}
         className={cn(
-          'relative z-10 mx-2 size-10 min-h-8 min-w-8 cursor-pointer overflow-hidden rounded-full bg-transparent',
+          'relative z-10 mx-5 size-10 min-h-8 min-w-8 cursor-pointer overflow-hidden rounded-full bg-transparent',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
           isBase && 'shadow-[0_0_0_2px_rgba(255,255,255,0.4)]',
         )}
@@ -92,6 +94,34 @@ function ColorSwatch({
   )
 }
 
+function ContrastLine({
+  surface,
+  ratioText,
+  mark,
+  detail,
+}: {
+  surface: 'white' | 'black'
+  ratioText: string
+  mark: string
+  detail: string
+}) {
+  return (
+    <span className="grid grid-cols-[0.375rem_2.4rem_1.6rem] items-center gap-1" title={detail}>
+      <span
+        aria-hidden
+        className={cn(
+          'size-1.5 rounded-full',
+          surface === 'white'
+            ? 'bg-white shadow-[inset_0_0_0_1px_rgba(0,0,0,0.45)]'
+            : 'bg-black shadow-[inset_0_0_0_1px_rgba(255,255,255,0.45)]',
+        )}
+      />
+      <span className="type-caption tabular-nums text-[var(--text)]">{ratioText}</span>
+      <span className="type-caption text-left text-[var(--text-muted)]">{mark}</span>
+    </span>
+  )
+}
+
 type ColorScaleRowProps = {
   colors: string[]
   /** Ordered labels from `stepKeysFor(settings)`. */
@@ -116,8 +146,7 @@ export function ColorScaleRow({
   return (
     <div
       className={cn(
-        'overflow-x-auto overscroll-x-contain scroll-smooth motion-reduce:scroll-auto',
-        '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+        'scrollbar-quiet min-w-0 overflow-x-auto overscroll-x-contain pb-1',
         className,
       )}
     >
@@ -155,6 +184,7 @@ export function ColorScaleRow({
           {colors.map((hex, index) => {
             const step = stepKeys[index] ?? String(index)
             const isBase = index === baseIndex
+            const contrast = contrastAgainstWhiteAndBlack(hex)
             return (
               <div
                 key={step}
@@ -163,18 +193,27 @@ export function ColorScaleRow({
                 <span
                   className={cn(
                     'type-caption',
-                    isBase ? 'text-white/90' : 'text-[var(--text-muted)]',
+                    isBase ? 'text-[var(--text)]' : 'text-[var(--text-muted)]',
                   )}
                 >
                   {step}
                 </span>
-                <span
-                  className={cn(
-                    'type-mono uppercase',
-                    isBase ? 'text-white/75' : 'text-[var(--text-muted)]',
-                  )}
-                >
+                <span className="type-mono uppercase text-[var(--text)]">
                   {hex.toUpperCase()}
+                </span>
+                <span className="mt-1 flex flex-col items-center gap-0.5">
+                  <ContrastLine
+                    surface="white"
+                    ratioText={contrast.onWhite.ratioText}
+                    mark={contrast.onWhite.mark}
+                    detail={contrast.onWhite.detail}
+                  />
+                  <ContrastLine
+                    surface="black"
+                    ratioText={contrast.onBlack.ratioText}
+                    mark={contrast.onBlack.mark}
+                    detail={contrast.onBlack.detail}
+                  />
                 </span>
               </div>
             )
