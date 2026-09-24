@@ -25,7 +25,7 @@ export function HeroMeshBackground({ colors }: Props) {
 
   const palette =
     colors.length >= 2
-      ? colors.slice(0, 6)
+      ? colors.slice(0, 4)
       : ['#0d7377', '#1aa89c', '#9fd8d2', '#1e3b3d']
 
   return (
@@ -36,11 +36,15 @@ export function HeroMeshBackground({ colors }: Props) {
     >
       <MeshGradient
         colors={palette}
-        distortion={0.8}
+        distortion={0.05}
         swirl={0.1}
         grainMixer={0}
         grainOverlay={0}
-        speed={reducedMotion ? 0 : 0.35}
+        speed={reducedMotion ? 0 : 0.24}
+        scale={1}
+        rotation={0}
+        offsetX={0}
+        offsetY={0}
         fit="cover"
         style={{ width: '100%', height: '100%' }}
       />
