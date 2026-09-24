@@ -1,8 +1,8 @@
 import { formatHex, parse } from 'culori'
 import {
+  customStepKeys,
   DEFAULT_GENERATION_SETTINGS,
   type GenerationSettings,
-  matchGenerationPreset,
   stepKeysForPreset,
   totalSteps,
 } from '@/lib/generation-settings'
@@ -14,6 +14,7 @@ import {
   type Preset,
 } from '@/lib/presets'
 import type { ChromaMode } from '@/lib/presets/types'
+import { assessRampQuality } from '@/lib/ramp-quality'
 
 export type ColorSystem = ChromaMode
 
@@ -35,7 +36,6 @@ export const COLOR_SYSTEMS: { value: ColorSystem; label: string; hint: string }[
   },
 ]
 
-/** Tailwind dense keys (19). Prefer `stepKeysForPresetId`. */
 export const STEP_KEYS = [
   50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750,
   800, 850, 900, 950,
@@ -43,7 +43,6 @@ export const STEP_KEYS = [
 
 export type StepKey = (typeof STEP_KEYS)[number]
 
-/** @deprecated Prefer baseIndexFor. */
 export const BASE_STEP_INDEX = 9
 
 export function stepKeysForPresetId(preset: Preset): string[] {
@@ -51,59 +50,61 @@ export function stepKeysForPresetId(preset: Preset): string[] {
 }
 
 /**
- * Ordered step labels. Prefer passing an explicit preset.
- * Falls back to legacy GenerationSettings matching.
+ * Stable step labels — depend only on preset / count, never on base color (Befund 4).
  */
 export function stepKeysFor(
   settings: GenerationSettings,
-  _baseIndex?: number,
   preset?: Preset | null,
 ): string[] {
   if (preset) return stepKeysForPresetId(preset)
-  const presetId = matchGenerationPreset(settings)
-  if (presetId) {
-    return [...stepKeysForPreset(presetId)]
+  const id = settings.presetId || migrateLegacyToPresetId(settings)
+  if (id === 'custom') {
+    return customStepKeys(totalSteps(settings))
   }
-  const count = totalSteps(settings)
-  const k = Math.min(
-    count - 1,
-    Math.max(0, _baseIndex ?? Math.floor(count / 2)),
-  )
-  const keys: string[] = []
-  for (let i = 0; i < k; i += 1) keys.push(`light${k - i}`)
-  keys.push('base')
-  for (let i = 1; i < count - k; i += 1) keys.push(`dark${i}`)
-  return keys
+  if (id === 'compact') {
+    return [...stepKeysForPreset('compact')]
+  }
+  const resolved = resolvePreset(id)
+  if (resolved) return stepKeysForPresetId(resolved)
+  return customStepKeys(totalSteps(settings))
 }
 
 export function baseStepIndex(settings: GenerationSettings): number {
   return settings.lightSteps
 }
 
+export type GenerateScaleOptions = {
+  preset?: Preset | null
+  presetId?: string
+  /** Step id override, e.g. "600" (Befund 7). */
+  baseStepOverride?: string | null
+  /** @deprecated use baseStepOverride */
+  baseOverride?: string | null
+  theme?: 'light' | 'dark'
+}
+
 export function generateScaleColors(
   baseHex: string,
   system: ColorSystem,
   settings: GenerationSettings = DEFAULT_GENERATION_SETTINGS,
-  options?: {
-    preset?: Preset | null
-    presetId?: string
-    baseOverride?: string | null
-    theme?: 'light' | 'dark'
-  },
+  options: GenerateScaleOptions = {},
 ): string[] {
   const preset =
-    options?.preset ??
+    options.preset ??
     resolvePreset(
-      options?.presetId ?? migrateLegacyToPresetId(settings),
+      options.presetId ?? migrateLegacyToPresetId(settings, settings.presetId),
     ) ??
-    resolvePreset('fine-50')!
+    resolvePreset('tailwind')!
+
+  const override =
+    options.baseStepOverride ?? options.baseOverride ?? null
 
   const result = generateFromPresetCached({
     baseHex,
     preset,
     chromaMode: system,
-    baseOverride: options?.baseOverride ?? null,
-    theme: options?.theme ?? 'light',
+    baseOverride: override,
+    theme: options.theme ?? 'light',
   })
   return result.steps.map((s) => s.hex)
 }
@@ -111,30 +112,27 @@ export function generateScaleColors(
 export function baseIndexFor(
   baseHex: string,
   settings: GenerationSettings,
-  options?: {
-    preset?: Preset | null
-    presetId?: string
-    baseOverride?: string | null
-  },
+  options: GenerateScaleOptions = {},
 ): number {
   const preset =
-    options?.preset ??
+    options.preset ??
     resolvePreset(
-      options?.presetId ?? migrateLegacyToPresetId(settings),
+      options.presetId ?? migrateLegacyToPresetId(settings, settings.presetId),
     ) ??
-    resolvePreset('fine-50')!
+    resolvePreset('tailwind')!
+  const override =
+    options.baseStepOverride ?? options.baseOverride ?? null
   const result = generateFromPresetCached({
     baseHex,
     preset,
     chromaMode: 'saturated',
-    baseOverride: options?.baseOverride ?? null,
+    baseOverride: override,
     theme: 'light',
   })
   if (result.baseStepId) {
     const idx = preset.steps.findIndex((s) => s.id === result.baseStepId)
     if (idx >= 0) return idx
   }
-  // Material (none): nearest by temporarily using auto
   const auto = generateFromPresetCached({
     baseHex,
     preset: { ...preset, baseRule: { mode: 'auto' } },
@@ -149,7 +147,7 @@ export function baseIndexFor(
   return Math.floor(preset.steps.length / 2)
 }
 
-export { generateFromPresetCached as generateRamp, settingsFromPreset }
+export { generateFromPresetCached as generateRamp, settingsFromPreset, assessRampQuality }
 
 export function resolveBaseIndex(
   baseHex: string,
@@ -163,10 +161,9 @@ export function resolveBaseIndex(
 export function scaleToStepRecord(
   colors: string[],
   settings: GenerationSettings = DEFAULT_GENERATION_SETTINGS,
-  baseIndex?: number,
   preset?: Preset | null,
 ): Record<string, string> {
-  const keys = stepKeysFor(settings, baseIndex, preset)
+  const keys = stepKeysFor(settings, preset)
   const record: Record<string, string> = {}
   keys.forEach((step, i) => {
     record[step] = colors[i] ?? '#000000'
@@ -179,22 +176,30 @@ export function scaleToCssVars(
   prefix = 'color',
   settings: GenerationSettings = DEFAULT_GENERATION_SETTINGS,
   preset?: Preset | null,
+  baseStepId?: string | null,
 ): string {
-  const keys = stepKeysFor(settings, undefined, preset)
-  return keys
-    .map((step, i) => {
-      const hex = colors[i] ?? '#000000'
-      return `  --${prefix}-${step}: ${hex};`
-    })
-    .join('\n')
+  const keys = stepKeysFor(settings, preset)
+  const lines = keys.map((step, i) => {
+    const hex = colors[i] ?? '#000000'
+    return `  --${prefix}-${step}: ${hex};`
+  })
+  if (baseStepId && keys.includes(baseStepId)) {
+    lines.push(`  --${prefix}-base: var(--${prefix}-${baseStepId});`)
+  }
+  return lines.join('\n')
 }
 
 export function scaleToJson(
   colors: string[],
   settings: GenerationSettings = DEFAULT_GENERATION_SETTINGS,
   preset?: Preset | null,
+  baseStepId?: string | null,
 ): string {
-  return JSON.stringify(scaleToStepRecord(colors, settings, undefined, preset), null, 2)
+  const record = scaleToStepRecord(colors, settings, preset)
+  if (baseStepId && record[baseStepId]) {
+    return JSON.stringify({ ...record, base: `{${baseStepId}}` }, null, 2)
+  }
+  return JSON.stringify(record, null, 2)
 }
 
 export function normalizeHex(input: string): string | null {

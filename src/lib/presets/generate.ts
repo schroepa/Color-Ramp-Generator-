@@ -17,6 +17,7 @@ import type {
   StepRef,
 } from '@/lib/presets/types'
 import { onColor } from '@/lib/contrast'
+import { hueShiftAt } from '@/lib/hue-shift'
 
 const toOklch = converter('oklch')
 const toLab = converter('lab')
@@ -39,13 +40,6 @@ function chromaShape(L: number, mode: ChromaMode): number {
   const height = mode === 'pale' ? 0.5 : mode === 'fade' ? 0.85 : 1
   const x = (L - peak) / width
   return height * Math.exp(-(x * x))
-}
-
-function hueShiftFor(mode: ChromaMode, enabled: boolean) {
-  if (!enabled) return { light: 0, dark: 0 }
-  if (mode === 'fade') return { light: -5, dark: 7 }
-  if (mode === 'pale') return { light: -4, dark: 6 }
-  return { light: -8, dark: 12 }
 }
 
 export function warpLadderAroundBase(
@@ -279,6 +273,16 @@ export function generateFromPreset(input: GenerateInput): GenerateResult {
     baseIndex = autoIndex
   }
 
+  // Soft clamp only for auto placement (Befund 7)
+  if (
+    baseIndex != null &&
+    count >= 3 &&
+    !baseOverride &&
+    preset.baseRule.mode === 'auto'
+  ) {
+    baseIndex = Math.min(count - 2, Math.max(1, baseIndex))
+  }
+
   let warped = targets
   let warpFactor = 1
   if (
@@ -296,9 +300,10 @@ export function generateFromPreset(input: GenerateInput): GenerateResult {
     warpFactor = result.warpFactor
   }
 
-  const shifts = hueShiftFor(chromaMode, preset.chroma.hueShift)
+  const shiftsEnabled = preset.chroma.hueShift !== false
   const shapeBase = Math.max(chromaShape(baseL, chromaMode), 1e-6)
   const anchorIndex = baseIndex ?? autoIndex
+  const hueForShift = baseC < 0.02 ? undefined : baseH
 
   const colors: string[] = Array.from({ length: count }, (_, index) => {
     if (index === baseIndex && lockExact) return lockedHex
@@ -308,10 +313,11 @@ export function generateFromPreset(input: GenerateInput): GenerateResult {
       index < anchorIndex
         ? (anchorIndex - index) / Math.max(anchorIndex, 1)
         : (index - anchorIndex) / Math.max(count - 1 - anchorIndex, 1)
-    const hue =
-      index < anchorIndex
-        ? baseH + shifts.light * t
-        : baseH + shifts.dark * t
+    const side = index < anchorIndex ? 'light' : 'dark'
+    const hueDelta = shiftsEnabled
+      ? hueShiftAt(hueForShift, baseC, t, side)
+      : 0
+    const hue = baseH + hueDelta
 
     let L: number
     if (metric === 'lstar') {
@@ -337,6 +343,23 @@ export function generateFromPreset(input: GenerateInput): GenerateResult {
     return formatHex(clampChroma(sample, 'oklch', 'rgb')) ?? '#000000'
   })
 
+  // Enforce strictly falling OKLCH L (light → dark)
+  for (let i = 1; i < colors.length; i += 1) {
+    const prev = toOklch(parse(colors[i - 1]!) ?? colors[i - 1]!)
+    const cur = toOklch(parse(colors[i]!) ?? colors[i]!)
+    if (!prev || !cur) continue
+    if ((cur.l ?? 0) >= (prev.l ?? 0) - 0.001) {
+      if (i === baseIndex && lockExact) continue
+      const sample: Oklch = {
+        mode: 'oklch',
+        l: clamp01(Math.max(0.02, (prev.l ?? 0.5) - 0.018)),
+        c: Math.max(0, cur.c ?? 0),
+        h: normalizeHue(cur.h ?? baseH),
+      }
+      colors[i] = formatHex(clampChroma(sample, 'oklch', 'rgb')) ?? colors[i]!
+    }
+  }
+
   const steps: GenerateStep[] = colors.map((hex, i) => {
     const o = toOklch(parse(hex) ?? hex)
     return {
@@ -357,18 +380,18 @@ export function generateFromPreset(input: GenerateInput): GenerateResult {
   const checks = runRoleChecks(preset, byId)
 
   let suggestedBaseStepId: string | undefined
-  if (
-    preset.baseRule.mode === 'fixed' &&
-    warpFactor > preset.baseRule.maxWarp &&
-    autoStepId
-  ) {
+  const maxWarp =
+    preset.baseRule.mode === 'fixed' ? preset.baseRule.maxWarp : 1.6
+  if (warpFactor > maxWarp && autoStepId) {
     suggestedBaseStepId = autoStepId
+    const stepLabel =
+      baseIndex != null ? preset.steps[baseIndex]?.id ?? '?' : '?'
     checks.push({
       id: 'warp-limit',
       level: 'warning',
       ok: false,
-      message: `Your color is extreme for step ${preset.baseRule.stepId}. The scale may look uneven.`,
-      recommendation: `Set base to step ${autoStepId}`,
+      message: `Your color fits poorly on step ${stepLabel}. The scale may look uneven.`,
+      recommendation: `Set base to Auto (${autoStepId})`,
       applyRecommendation: { baseOverride: autoStepId },
     })
   }

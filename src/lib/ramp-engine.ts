@@ -18,7 +18,7 @@ const WHITE = '#ffffff'
  * Densified logarithmically for other step counts.
  */
 const TAILWIND_CONTRAST_LADDER = [
-  1.05, 1.15, 1.35, 1.7, 2.4, 3.3, 4.6, 6.5, 9, 12.5, 16,
+  1.08, 1.15, 1.35, 1.7, 2.4, 3.3, 4.6, 6.5, 9, 12.5, 16,
 ]
 
 const MATERIAL_CONTRAST_LADDER = [
@@ -218,8 +218,6 @@ export function generateRamp(
   const cBase = Math.max(wcagContrast(lockedHex, WHITE), 1.02)
 
   const targets = ladderForSettings(settings)
-  // Soften lightest default: never below ~1.08 when settings ask for very high L ends
-  if (targets[0] != null && targets[0] < 1.08) targets[0] = 1.08
 
   let baseIndex =
     options.baseIndexOverride != null &&
@@ -285,75 +283,11 @@ export function resolveBaseIndex(
   return idx
 }
 
-export type RampQuality = {
-  ok: boolean
-  monotone: boolean
-  minDeltaE: boolean
-  maxGap: boolean
-  usable: boolean
-  baseEmbedded: boolean
-  label: string
-}
-
-/** Quick post-generation quality gate (review v2 · B3). */
-export function assessRampQuality(
-  colors: string[],
-  baseIndex: number,
-): RampQuality {
-  const BLACK = '#000000'
-  const luminances = colors.map((hex) => {
-    const o = toOklch(parse(hex) ?? hex)
-    return o?.l ?? 0
-  })
-  let monotone = true
-  for (let i = 1; i < luminances.length; i += 1) {
-    if ((luminances[i] ?? 0) > (luminances[i - 1] ?? 0) + 0.002) {
-      monotone = false
-      break
-    }
-  }
-
-  const deltas: number[] = []
-  for (let i = 1; i < colors.length; i += 1) {
-    const a = toOklch(parse(colors[i - 1]!) ?? colors[i - 1]!)
-    const b = toOklch(parse(colors[i]!) ?? colors[i]!)
-    if (!a || !b) continue
-    const dL = (a.l ?? 0) - (b.l ?? 0)
-    const dC = (a.c ?? 0) - (b.c ?? 0)
-    const dH = ((a.h ?? 0) - (b.h ?? 0)) * 0.01
-    deltas.push(Math.sqrt(dL * dL + dC * dC + dH * dH))
-  }
-  const avg =
-    deltas.length > 0
-      ? deltas.reduce((s, d) => s + d, 0) / deltas.length
-      : 0
-  const minDeltaE = deltas.every((d) => d >= 0.015)
-  const maxGap = deltas.every((d) => d <= Math.max(avg * 2.5, 0.08))
-
-  const usable =
-    colors.some((hex) => wcagContrast(hex, WHITE) >= 4.5) &&
-    colors.some((hex) => wcagContrast(hex, BLACK) >= 4.5)
-
-  let baseEmbedded = true
-  if (baseIndex > 0 && baseIndex < colors.length - 1) {
-    const a = toOklch(parse(colors[baseIndex - 1]!) ?? '')
-    const b = toOklch(parse(colors[baseIndex]!) ?? '')
-    const c = toOklch(parse(colors[baseIndex + 1]!) ?? '')
-    if (a && b && c) {
-      const d1 = Math.abs((a.l ?? 0) - (b.l ?? 0))
-      const d2 = Math.abs((b.l ?? 0) - (c.l ?? 0))
-      baseEmbedded = Math.max(d1, d2) < 0.22
-    }
-  }
-
-  const ok = monotone && minDeltaE && maxGap && usable && baseEmbedded
-  return {
-    ok,
-    monotone,
-    minDeltaE,
-    maxGap,
-    usable,
-    baseEmbedded,
-    label: ok ? 'Scale even ✓' : 'Scale needs review',
-  }
-}
+export {
+  assessRampQuality,
+  MIN_NEIGHBOR_DELTA_E,
+  MAX_GAP_FACTOR,
+  MAX_GAP_ABS,
+  BASE_EMBED_MAX_DELTA_E,
+  type RampQuality,
+} from '@/lib/ramp-quality'

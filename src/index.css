@@ -43,3 +43,22 @@
     }
   }
 }
+
+@layer utilities {
+  /* Befund 8: enlarge hit area on coarse pointers without growing the visual */
+  .hit-target {
+    position: relative;
+  }
+  @media (pointer: coarse) {
+    .hit-target::before {
+      content: '';
+      position: absolute;
+      inset: 50%;
+      width: 44px;
+      height: 44px;
+      transform: translate(-50%, -50%);
+      min-width: 100%;
+      min-height: 100%;
+    }
+  }
+}

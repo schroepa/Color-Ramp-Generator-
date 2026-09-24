@@ -111,7 +111,7 @@ export function GenerationSettingsPanel({
                   className="underline outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
                   onClick={forkCustom}
                 >
-                  Edit as custom preset
+                  Choose steps freely
                 </button>
               </>
             ) : null}

@@ -11,7 +11,7 @@ Always follow established UI and UX best practices (hierarchy, wording, feedback
 
 - One primary action per region (app bar, card, dialog). Everything else is secondary or quiet.
 - Primary / clear secondary: filled or strong pill (`default` / `secondary`). Quiet: `ghost` or text-level, muted color, no matching filled pill.
-- Destructive (delete, remove) stays visually receded unless the whole task is deletion. Keep discoverable via label/tooltip/`aria-label`, ≥32px hit target, visible focus ring. No confirm modal by default for reversible local deletes unless product asks.
+- Destructive (delete, remove) stays visually receded unless the whole task is deletion. Keep discoverable via label/tooltip/`aria-label`, hit targets per Focus & targets below, visible focus ring. No confirm modal by default for reversible local deletes unless product asks.
 - Do not style Delete like Export/Copy. Liquid-gooey on quiet controls uses a faint chip-like fill — never primary/pill fill. Quiet controls still animate (hover swell / press squash); respect `prefers-reduced-motion`.
 
 ## Action motion
@@ -27,5 +27,16 @@ Always follow established UI and UX best practices (hierarchy, wording, feedback
 ## Focus & targets
 
 - Keyboard focus always visible (`--ring` or equivalent).
-- Interactive controls meet ~32×32px minimum hit area.
+- Hit area minimum: 32×32px for fine pointers, 44×44px under `(pointer: coarse)`.
+  Visual size may stay smaller; extend the hit area (padding or pseudo-element), not the icon.
+- List rows on touch: at least 48px high.
+
+## Text on generated colors
+
+- Never hardcode text color on a generated swatch, chip, or preview surface.
+  Always use `onColor()` from `src/lib/contrast.ts`.
+- Contrast chips separate the sample ("Aa" in the tested color) from the verdict
+  (AAA / AA / AA18 / ✕), which must always be readable.
+- Swatches that barely differ from the app background get an edge contour
+  via `needsEdgeContour()`.
 ---

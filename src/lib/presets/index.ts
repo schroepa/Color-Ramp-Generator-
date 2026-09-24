@@ -59,27 +59,32 @@ export function migrateLegacyToPresetId(
   settings: GenerationSettings | null | undefined,
   explicitPresetId?: string | null,
 ): string {
-  if (explicitPresetId && resolvePreset(explicitPresetId)) {
-    return explicitPresetId
+  if (explicitPresetId) {
+    const aliased = migratePresetIdAlias(explicitPresetId)
+    if (aliased === 'custom') return 'custom'
+    if (aliased === 'compact') return 'compact'
+    if (resolvePreset(aliased)) return aliased
   }
   if (!settings) return DEFAULT_PRESET_ID
+  // Migration only: infer from step counts when presetId missing
   const total = settings.lightSteps + 1 + settings.darkSteps
   if (settings.lightSteps === 9 && settings.darkSteps === 9) return 'fine-50'
   if (settings.lightSteps === 5 && settings.darkSteps === 5) return 'tailwind'
   if (settings.lightSteps === 4 && settings.darkSteps === 5) return 'material3'
+  if (settings.lightSteps === 2 && settings.darkSteps === 2) return 'compact'
   if (total === 19) return 'fine-50'
   if (total === 11) return 'tailwind'
   if (total === 12) return 'radix'
   if (total === 13) return 'material3'
   if (total === 10) return 'ant'
-  return 'fine-50'
+  if (total === 5) return 'compact'
+  return 'custom'
 }
 
 /** Map old GenerationPresetId strings. */
 export function migratePresetIdAlias(id: string): string {
   if (id === 'tailwind-dense') return 'fine-50'
-  if (id === 'material') return 'material3'
-  if (id === 'compact') return 'open-color'
+  if (id === 'material' || id === 'material-2014') return 'material3'
   return id
 }
 
@@ -94,7 +99,6 @@ export function settingsFromPreset(preset: Preset): GenerationSettings {
   return {
     lightSteps: light,
     darkSteps: dark,
-    lightestLightness: 0.97,
-    darkestLightness: 0.12,
+    presetId: preset.id,
   }
 }

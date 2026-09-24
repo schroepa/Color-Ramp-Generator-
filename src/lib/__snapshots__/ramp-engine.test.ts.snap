@@ -1,0 +1,49 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`snapshots > teal / yellow / navy on tailwind > #0d7377 1`] = `
+[
+  "#eff8f8",
+  "#e8f4f4",
+  "#d3e5e6",
+  "#b3d2d4",
+  "#7db9bb",
+  "#4ea2a6",
+  "#238b90",
+  "#0d7377",
+  "#19585a",
+  "#1e3b3d",
+  "#172424",
+]
+`;
+
+exports[`snapshots > teal / yellow / navy on tailwind > #1e2a5a 1`] = `
+[
+  "#f3f6ff",
+  "#e7eeff",
+  "#cddcff",
+  "#acc2ff",
+  "#81a0ff",
+  "#5e81ff",
+  "#425eff",
+  "#3245db",
+  "#283a9b",
+  "#1e2a5a",
+  "#17203d",
+]
+`;
+
+exports[`snapshots > teal / yellow / navy on tailwind > #f5d547 1`] = `
+[
+  "#fff6d3",
+  "#fbebaa",
+  "#f5d547",
+  "#e4bd00",
+  "#c69f00",
+  "#ab8500",
+  "#926d00",
+  "#775600",
+  "#604300",
+  "#472e00",
+  "#301e00",
+]
+`;

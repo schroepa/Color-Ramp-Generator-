@@ -94,7 +94,7 @@ export function setToCss(
   const pattern = active.exportDefaults.tokenPattern
   const blocks = scales.map((scale, index) => {
     const scaleName = scaleTokenName(scale, index)
-    const keys = stepKeysFor(generation, undefined, active)
+    const keys = stepKeysFor(generation, active)
     const lines = keys.map((step, i) => {
       const hex = scale.colors[i] ?? '#000000'
       const token = applyTokenPattern(pattern, scaleName, step)
@@ -103,6 +103,18 @@ export function setToCss(
         : `--${token.replace(/^\$/, '').replaceAll('{', '').replaceAll('}', '')}`
       return `  ${name}: ${hex};`
     })
+    const baseIdx = scale.colors.length
+      ? Math.floor(scale.colors.length / 2)
+      : 0
+    // Prefer explicit base via generate metadata when available — alias mid as fallback
+    const baseStep = keys[baseIdx]
+    if (baseStep) {
+      const baseToken = applyTokenPattern(pattern, scaleName, 'base')
+      const baseName = baseToken.startsWith('--') ? baseToken : `--${scaleName}-base`
+      const refToken = applyTokenPattern(pattern, scaleName, baseStep)
+      const refName = refToken.startsWith('--') ? refToken : `--${refToken}`
+      lines.push(`  ${baseName}: var(${refName});`)
+    }
     return `/* ${scaleDisplayName(scale)} */\n:root {\n${lines.join('\n')}\n}`
   })
   return `${blocks.join('\n\n')}\n`
@@ -117,7 +129,7 @@ export function setToTailwindV4(
   const lines: string[] = ['@theme {']
   scales.forEach((scale, index) => {
     const scaleName = scaleTokenName(scale, index)
-    const keys = stepKeysFor(generation, undefined, active)
+    const keys = stepKeysFor(generation, active)
     keys.forEach((step, i) => {
       lines.push(
         `  --color-${scaleName}-${step}: ${scale.colors[i] ?? '#000000'};`,
@@ -140,7 +152,7 @@ export function setToTailwind(
   const colors: Record<string, Record<string, string>> = {}
   scales.forEach((scale, index) => {
     const name = scaleTokenName(scale, index)
-    const steps = scaleToStepRecord(scale.colors, generation, undefined, active)
+    const steps = scaleToStepRecord(scale.colors, generation, active)
     colors[name] = Object.fromEntries(
       Object.entries(steps).map(([key, hex]) => [key, hex.toUpperCase()]),
     )
@@ -167,7 +179,7 @@ export function setToDtcg(
   > = {}
   scales.forEach((scale, index) => {
     const name = scaleTokenName(scale, index)
-    const keys = stepKeysFor(generation, undefined, active)
+    const keys = stepKeysFor(generation, active)
     const group: Record<string, { $type: 'color'; $value: string }> = {}
     keys.forEach((key, i) => {
       group[key] = {
@@ -190,7 +202,7 @@ export function setToScss(
   const active = resolveExportPreset(generation, preset)
   const blocks = scales.map((scale, index) => {
     const name = scaleTokenName(scale, index)
-    const steps = scaleToStepRecord(scale.colors, generation, undefined, active)
+    const steps = scaleToStepRecord(scale.colors, generation, active)
     const entries = Object.entries(steps)
       .map(([key, hex]) => `  '${key}': ${hex.toUpperCase()},`)
       .join('\n')
@@ -219,7 +231,7 @@ export function setToSvg(
     .map((scale, row) => {
       const y = row * (swatch + labelH + rowGap)
       const label = escapeXml(scaleDisplayName(scale))
-      const keys = stepKeysFor(generation, undefined, active)
+      const keys = stepKeysFor(generation, active)
       const rects = scale.colors
         .map((hex, i) => {
           const x = i * (swatch + gap)

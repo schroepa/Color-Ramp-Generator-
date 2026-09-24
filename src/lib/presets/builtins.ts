@@ -18,9 +18,9 @@ function stepsFrom(
   }))
 }
 
-/** Fallback contrast-vs-white ladders (§4.3) until calibrate-ladders runs. */
+/** Fallback: 1.08 keeps 50 vs 100 distinguishable (Befund 3). */
 const TW_FALLBACK = [
-  1.05, 1.15, 1.35, 1.7, 2.4, 3.3, 4.6, 6.5, 9, 12.5, 16,
+  1.08, 1.15, 1.35, 1.7, 2.4, 3.3, 4.6, 6.5, 9, 12.5, 16,
 ]
 
 /** Densify TW ladder log-linear to n stops (fine-50 = 19). */

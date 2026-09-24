@@ -250,6 +250,8 @@ function ScaleEditor({
   surfaceCss,
   preset,
   checks,
+  warpFactor,
+  suggestedBaseStepId,
   onSelectStep,
   onOpenDetail,
   onDragStart,
@@ -274,6 +276,8 @@ function ScaleEditor({
   surfaceCss: string
   preset: Preset
   checks: CheckResult[]
+  warpFactor?: number
+  suggestedBaseStepId?: string
   onSelectStep: (index: number) => void
   onOpenDetail: () => void
   onDragStart: (index: number) => void
@@ -382,6 +386,23 @@ function ScaleEditor({
             </p>
             {checks.length > 0 ? (
               <ScaleChecksBadge checks={checks} />
+            ) : null}
+            {warpFactor != null &&
+            warpFactor > 1.6 &&
+            suggestedBaseStepId ? (
+              <p className="type-caption mt-1 text-[var(--text-muted)]">
+                Your color fits poorly on this step (warp {warpFactor.toFixed(2)}
+                ). Recommendation: Auto ({suggestedBaseStepId}).{' '}
+                <button
+                  type="button"
+                  className="underline outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                  onClick={() =>
+                    onChange({ baseOverride: suggestedBaseStepId })
+                  }
+                >
+                  Apply
+                </button>
+              </p>
             ) : null}
           </div>
           <Button
@@ -506,8 +527,8 @@ export function ColorGenerator() {
       })
     : 0
   const tabStepKeys = tabScale
-    ? stepKeysFor(settings, tabBaseIndex, activePreset)
-    : stepKeysFor(settings, undefined, activePreset)
+    ? stepKeysFor(settings, activePreset)
+    : stepKeysFor(settings, activePreset)
   const selectedBaseIndex = selectedScale
     ? baseIndexFor(selectedScale.baseColor, settings, {
         preset: activePreset,
@@ -1077,11 +1098,7 @@ export function ColorGenerator() {
                           baseOverride: scale.baseOverride ?? null,
                         },
                       )
-                      const scaleKeys = stepKeysFor(
-                        settings,
-                        scaleBase,
-                        activePreset,
-                      )
+                      const scaleKeys = stepKeysFor(settings, activePreset)
                       const gen = generateFromPresetCached({
                         baseHex: scale.baseColor,
                         preset: activePreset,
@@ -1101,6 +1118,8 @@ export function ColorGenerator() {
                         surfaceCss={surfaceMeta.css}
                         preset={activePreset}
                         checks={gen.checks}
+                        warpFactor={gen.warpFactor}
+                        suggestedBaseStepId={gen.suggestedBaseStepId}
                         selectedStep={
                           selected?.scaleId === scale.id
                             ? selected.stepIndex
@@ -1250,7 +1269,7 @@ export function ColorGenerator() {
               <StepInspector
                 hex={selectedHex}
                 step={
-                  stepKeysFor(settings, selectedBaseIndex, activePreset)[
+                  stepKeysFor(settings, activePreset)[
                     selected.stepIndex
                   ] ?? String(selected.stepIndex)
                 }
@@ -1326,7 +1345,7 @@ export function ColorGenerator() {
             <StepInspector
               hex={selectedHex}
               step={
-                stepKeysFor(settings, selectedBaseIndex, activePreset)[
+                stepKeysFor(settings, activePreset)[
                   selected.stepIndex
                 ] ?? String(selected.stepIndex)
               }
@@ -1354,14 +1373,7 @@ export function ColorGenerator() {
           baseColor={detailScale.baseColor}
           system={detailScale.system}
           colors={detailScale.colors}
-          stepKeys={stepKeysFor(
-            settings,
-            baseIndexFor(detailScale.baseColor, settings, {
-              preset: activePreset,
-              baseOverride: detailScale.baseOverride ?? null,
-            }),
-            activePreset,
-          )}
+          stepKeys={stepKeysFor(settings, activePreset)}
           baseIndex={baseIndexFor(detailScale.baseColor, settings, {
             preset: activePreset,
             baseOverride: detailScale.baseOverride ?? null,

@@ -25,6 +25,8 @@ Always use tokens from `src/design-system/`. Never hardcode font family, size, w
 
 Mobile (base) · `tablet` 48rem (768) · `desktop` 80rem (1280) · `desktop-plus` 100rem (1600). Prefer these Tailwind variants over `sm`/`md`/`lg` for layout.
 
+Touch hit sizes use `(pointer: coarse)`, not breakpoints — large tablets are still touch.
+
 ## Tokens
 
 Color, space, radius, shadow, and motion live as CSS variables. Keep semantic aliases (`--bg`, `--text`, …) intact when extending tokens.
