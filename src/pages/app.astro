@@ -1,9 +1,12 @@
 ---
 import App from '@/App'
+import SiteHead from '@/components/seo/SiteHead.astro'
 import '@/index.css'
 import { withBase } from '@/i18n/copy'
 
 const title = 'Tintfield · App'
+const description =
+  'Paste one color, get a contrast-safe color scale for Tailwind, Radix, Material and more.'
 const canonical = new URL(withBase('/app'), Astro.site).href
 ---
 
@@ -12,7 +15,7 @@ const canonical = new URL(withBase('/app'), Astro.site).href
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Tintfield color scale generator" />
+    <meta name="description" content={description} />
     <title>{title}</title>
     <link rel="canonical" href={canonical} />
     <link rel="alternate" hreflang="en" href={canonical} />
@@ -20,6 +23,12 @@ const canonical = new URL(withBase('/app'), Astro.site).href
       rel="alternate"
       hreflang="de"
       href={new URL(withBase('/de/app'), Astro.site).href}
+    />
+    <SiteHead
+      title={title}
+      description={description}
+      url={canonical}
+      locale="en"
     />
   </head>
   <body class="min-h-svh bg-[var(--bg)] text-[var(--text)]">

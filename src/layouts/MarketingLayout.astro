@@ -1,6 +1,7 @@
 ---
 import { copyFor, withBase, type Locale } from '@/i18n/copy'
 import { LocaleSwitch, DeHint } from '@/components/marketing/LocaleSwitch'
+import SiteHead from '@/components/seo/SiteHead.astro'
 import '@/index.css'
 
 type Props = {
@@ -14,6 +15,7 @@ const { locale, pathEn, pathDe } = Astro.props as Props
 const copy = copyFor(locale)
 const appPath = locale === 'de' ? '/de/app' : '/app'
 const homePath = locale === 'de' ? '/de/' : '/'
+const pageUrl = locale === 'de' ? new URL(withBase(pathDe), Astro.site) : new URL(withBase(pathEn === '/' ? '/' : pathEn), Astro.site)
 const enUrl = new URL(withBase(pathEn === '/' ? '/' : pathEn), Astro.site)
 const deUrl = new URL(withBase(pathDe), Astro.site)
 ---
@@ -25,14 +27,16 @@ const deUrl = new URL(withBase(pathDe), Astro.site)
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={copy.meta.description} />
     <title>{copy.meta.title}</title>
-    <link rel="canonical" href={locale === 'de' ? deUrl.href : enUrl.href} />
+    <link rel="canonical" href={pageUrl.href} />
     <link rel="alternate" hreflang="en" href={enUrl.href} />
     <link rel="alternate" hreflang="de" href={deUrl.href} />
     <link rel="alternate" hreflang="x-default" href={enUrl.href} />
-    <meta property="og:title" content={copy.meta.title} />
-    <meta property="og:description" content={copy.meta.description} />
-    <meta property="og:url" content={locale === 'de' ? deUrl.href : enUrl.href} />
-    <meta property="og:type" content="website" />
+    <SiteHead
+      title={copy.meta.title}
+      description={copy.meta.description}
+      url={pageUrl.href}
+      locale={locale}
+    />
     <slot name="head" />
   </head>
   <body class="min-h-svh bg-[var(--bg)] text-[var(--text)]">

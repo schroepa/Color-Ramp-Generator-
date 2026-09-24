@@ -1,0 +1,81 @@
+---
+import { BRAND } from '@/lib/brand'
+
+type Props = {
+  title: string
+  description: string
+  /** Canonical absolute URL for this page */
+  url: string
+  locale: 'en' | 'de'
+  /** Optional override, path from site root e.g. /social/og-default.png */
+  image?: string
+  imageAlt?: string
+  type?: 'website' | 'article'
+  noindex?: boolean
+}
+
+const {
+  title,
+  description,
+  url,
+  locale,
+  image = BRAND.ogImage,
+  imageAlt = title,
+  type = 'website',
+  noindex = false,
+} = Astro.props
+
+const site = Astro.site ?? new URL('https://tintfield.ptrckschrdtr.de')
+const ogImageUrl = new URL(image, site).href
+const twitterImageUrl = new URL(BRAND.twitterImage, site).href
+const ogLocale = locale === 'de' ? 'de_DE' : 'en_US'
+const ogLocaleAlt = locale === 'de' ? 'en_US' : 'de_DE'
+---
+
+{/* —— Icons / PWA —— */}
+<link rel="icon" href={BRAND.faviconIco} sizes="any" />
+<link rel="icon" href={BRAND.faviconSvg} type="image/svg+xml" />
+<link rel="apple-touch-icon" href={BRAND.appleTouchIcon} />
+<link rel="mask-icon" href={BRAND.safariPinnedTab} color={BRAND.themeColor} />
+<link rel="manifest" href={BRAND.manifest} />
+<meta name="theme-color" content={BRAND.themeColor} media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content={BRAND.themeColorLight} media="(prefers-color-scheme: light)" />
+<meta name="msapplication-TileColor" content={BRAND.tileColor} />
+<meta name="msapplication-config" content={BRAND.browserConfig} />
+<meta name="application-name" content={BRAND.name} />
+<meta name="apple-mobile-web-app-title" content={BRAND.name} />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+
+{noindex && <meta name="robots" content="noindex,nofollow" />}
+
+{/* —— Open Graph (Facebook, LinkedIn, Slack, Discord, WhatsApp, iMessage, …) —— */}
+<meta property="og:site_name" content={BRAND.name} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={url} />
+<meta property="og:type" content={type} />
+<meta property="og:locale" content={ogLocale} />
+<meta property="og:locale:alternate" content={ogLocaleAlt} />
+<meta property="og:image" content={ogImageUrl} />
+<meta property="og:image:secure_url" content={ogImageUrl} />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content={String(BRAND.ogImageWidth)} />
+<meta property="og:image:height" content={String(BRAND.ogImageHeight)} />
+<meta property="og:image:alt" content={imageAlt} />
+{/* Square fallback for messengers that prefer 1:1 */}
+<meta property="og:image" content={new URL(BRAND.ogSquare, site).href} />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="1200" />
+<meta property="og:image:alt" content={imageAlt} />
+
+{/* —— X / Twitter —— */}
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={twitterImageUrl} />
+<meta name="twitter:image:alt" content={imageAlt} />
+
+{/* —— Misc crawlers —— */}
+<meta name="image" content={ogImageUrl} />
+<link rel="image_src" href={ogImageUrl} />
