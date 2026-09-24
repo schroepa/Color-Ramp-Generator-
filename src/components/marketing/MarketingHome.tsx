@@ -16,6 +16,7 @@ import { StickyCta } from '@/components/marketing/StickyCta'
 import { ReasonsSection } from '@/components/marketing/ReasonsSection'
 import { FigmaWaitlist } from '@/components/marketing/FigmaWaitlist'
 import { FaqAccordion } from '@/components/marketing/FaqAccordion'
+import { HeroMeshBackground } from '@/components/marketing/HeroMeshBackground'
 
 const EXAMPLES = [
   '#0d7377',
@@ -122,8 +123,18 @@ export function MarketingHome({ locale, copy }: MarketingHomeProps) {
     <>
       <section
         id="hero"
-        className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 px-4 pb-16 pt-10 text-center tablet:px-6 tablet:pt-16"
+        className="relative isolate overflow-hidden"
       >
+        <HeroMeshBackground
+          colors={[
+            colors[1] ?? colors[0]!,
+            colors[Math.floor(colors.length * 0.35)] ?? accent,
+            accent,
+            colors[Math.floor(colors.length * 0.75)] ?? accent,
+            colors[colors.length - 2] ?? colors[colors.length - 1]!,
+          ]}
+        />
+        <div className="relative z-10 mx-auto flex w-full max-w-3xl flex-col items-center gap-6 px-4 pb-16 pt-10 text-center tablet:px-6 tablet:pt-16">
         <h1 className="type-display text-[var(--text)]">{copy.hero.headline}</h1>
         <p className="max-w-xl type-body text-[var(--text-muted)]">
           {copy.hero.subline}
@@ -275,6 +286,7 @@ export function MarketingHome({ locale, copy }: MarketingHomeProps) {
               {copy.hero.micro}
             </p>
           </div>
+        </div>
         </div>
       </section>
 
