@@ -1,0 +1,31 @@
+---
+description: UI/UX best practices — hierarchy, destructive actions, wording, a11y
+alwaysApply: true
+---
+
+# UX best practices
+
+Always follow established UI and UX best practices (hierarchy, wording, feedback, accessibility). Do not invent clever chrome that fights clarity.
+
+## Visual hierarchy
+
+- One primary action per region (app bar, card, dialog). Everything else is secondary or quiet.
+- Primary / clear secondary: filled or strong pill (`default` / `secondary`). Quiet: `ghost` or text-level, muted color, no matching filled pill.
+- Destructive (delete, remove) stays visually receded unless the whole task is deletion. Keep discoverable via label/tooltip/`aria-label`, ≥32px hit target, visible focus ring. No confirm modal by default for reversible local deletes unless product asks.
+- Do not style Delete like Export/Copy. Liquid-gooey on quiet controls uses a faint chip-like fill — never primary/pill fill. Quiet controls still animate (hover swell / press squash); respect `prefers-reduced-motion`.
+
+## Action motion
+
+- Every control that performs an action uses liquid-gooey states: hover ~1.04 bouncy, press ~0.97 snappy, focus-visible ring, disabled without motion. Fill weight follows hierarchy (primary for Export/Add, quiet for Delete).
+
+## Wording & feedback
+
+- Labels: verb + object (“Delete scale”, “Export project”). No witty or vague chrome.
+- After actions: brief status/toast. Errors must be understandable.
+- Do not rely on color alone for meaning (pair with icon, text, or pattern).
+
+## Focus & targets
+
+- Keyboard focus always visible (`--ring` or equivalent).
+- Interactive controls meet ~32×32px minimum hit area.
+---

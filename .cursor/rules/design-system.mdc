@@ -1,0 +1,41 @@
+---
+description: Tintfield design system — Geist, type styles, tokens, breakpoints
+alwaysApply: true
+---
+
+# Design system
+
+Always use tokens from `src/design-system/`. Never hardcode font family, size, weight, or tracking.
+
+## Type
+
+- Face: **Geist** (sans) and **Geist Mono** (mono) only.
+- Use named styles: `type-display`, `type-title`, `type-heading`, `type-body`, `type-body-sm`, `type-label`, `type-caption`, `type-mono`.
+- Liquid type via clamp tokens (`--type-*-size`). Do not use `text-sm`, `text-[13px]`, etc.
+
+```tsx
+// ❌ BAD
+<p className="text-[13px] font-medium tracking-tight">Label</p>
+
+// ✅ GOOD
+<p className="type-label text-[var(--text-muted)]">Label</p>
+```
+
+## Breakpoints
+
+Mobile (base) · `tablet` 48rem · `desktop` 64rem · `desktop-plus` 90rem. Prefer these Tailwind variants over `sm`/`md`/`lg` for layout.
+
+## Tokens
+
+Color, space, radius, shadow, and motion live as CSS variables. Keep semantic aliases (`--bg`, `--text`, …) intact when extending tokens.
+
+## Anti-cliché (tool UI)
+
+- No second hero, welcome subtitle, feature list, or product-name repeat below the top bar.
+- No eyebrow labels with wide tracking, marketing chips, star counts, or decorative badges (e.g. “OKLCH”) in chrome.
+- No gradient orbs, grain overlays, glassmorphism, gradient text, or purple/glow “AI default” themes.
+- Cards only for real objects (editor, a scale). Do not stack identical decorative cards with the same radius/shadow/padding.
+- Do not animate the page shell: no entrance cascades, floating blobs, or SmoothUI demo motion. Liquid gooey stays only on press/hover, system indicator trail, and the subtle bridge between neighboring circles.
+- Editor layout: desktop (64rem+) is two columns — sticky editor left, scales right — so ramps stay visible while editing. Below desktop: single column. No third column at desktop-plus.
+- Quiet chrome: direct labels, color and ramp are the subject. Keep Geist tokens and the dark minimal palette; do not restyle into a new trendy theme.
+- Toasts must not cover the scales column (prefer bottom-left / away from the main ramp view).
