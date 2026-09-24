@@ -1,0 +1,12 @@
+---
+import MarketingLayout from '@/layouts/MarketingLayout.astro'
+import { MarketingHome } from '@/components/marketing/MarketingHome'
+import { copyFor } from '@/i18n/copy'
+
+const locale = 'de' as const
+const copy = copyFor(locale)
+---
+
+<MarketingLayout locale={locale} pathEn="/" pathDe="/de/">
+  <MarketingHome client:load locale={locale} copy={copy} />
+</MarketingLayout>

@@ -1,0 +1,217 @@
+---
+import { copyFor, withBase, type Locale } from '@/i18n/copy'
+import { LocaleSwitch, DeHint } from '@/components/marketing/LocaleSwitch'
+import '@/index.css'
+
+type Props = {
+  locale: Locale
+  /** Path without base, e.g. "/" or "/app" */
+  pathEn: string
+  pathDe: string
+}
+
+const { locale, pathEn, pathDe } = Astro.props as Props
+const copy = copyFor(locale)
+const appPath = locale === 'de' ? '/de/app' : '/app'
+const homePath = locale === 'de' ? '/de/' : '/'
+const enUrl = new URL(withBase(pathEn === '/' ? '/' : pathEn), Astro.site)
+const deUrl = new URL(withBase(pathDe), Astro.site)
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={copy.meta.description} />
+    <title>{copy.meta.title}</title>
+    <link rel="canonical" href={locale === 'de' ? deUrl.href : enUrl.href} />
+    <link rel="alternate" hreflang="en" href={enUrl.href} />
+    <link rel="alternate" hreflang="de" href={deUrl.href} />
+    <link rel="alternate" hreflang="x-default" href={enUrl.href} />
+    <meta property="og:title" content={copy.meta.title} />
+    <meta property="og:description" content={copy.meta.description} />
+    <meta property="og:url" content={locale === 'de' ? deUrl.href : enUrl.href} />
+    <meta property="og:type" content="website" />
+    <slot name="head" />
+  </head>
+  <body class="min-h-svh bg-[var(--bg)] text-[var(--text)]">
+    {locale === 'en' && <DeHint client:load show={true} />}
+    <header
+      class="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--bg)]"
+    >
+      <div
+        class="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 tablet:h-16 tablet:px-6 desktop:px-8"
+      >
+        <a
+          href={withBase(homePath)}
+          class="type-label shrink-0 text-[var(--text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+        >
+          Tintfield
+        </a>
+        <nav
+          class="ml-auto hidden items-center gap-5 desktop:flex"
+          aria-label="Primary"
+        >
+          <a
+            href={`${withBase(homePath)}#how`}
+            class="type-label text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+            >{copy.header.presets}</a
+          >
+          <a
+            href={`${withBase(homePath)}#how`}
+            class="type-label text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+            >{copy.header.how}</a
+          >
+          <a
+            href={`${withBase(homePath)}#faq`}
+            class="type-label text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+            >{copy.header.docs}</a
+          >
+          <a
+            href={`${withBase(homePath)}#figma`}
+            class="type-label text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+            >{copy.header.figma}</a
+          >
+        </nav>
+        <div class="ml-auto flex items-center gap-3 desktop:ml-4">
+          <LocaleSwitch
+            client:load
+            locale={locale}
+            pathEn={pathEn}
+            pathDe={pathDe}
+          />
+          <a
+            href={withBase(appPath)}
+            class="type-label hidden min-h-11 items-center rounded-full bg-[var(--text)] px-4 text-[var(--bg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] tablet:inline-flex"
+          >
+            {copy.header.open}
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer
+      id="site-footer"
+      class="border-t border-[var(--line)] px-4 py-12 tablet:px-6 desktop:px-8"
+    >
+      <div
+        class="mx-auto grid max-w-6xl gap-10 tablet:grid-cols-2 desktop:grid-cols-4"
+      >
+        <div>
+          <p class="type-label text-[var(--text)]">Tintfield</p>
+          <p class="mt-2 type-body-sm text-[var(--text-muted)]">
+            {copy.footer.claim}
+          </p>
+          <div class="mt-4">
+            <LocaleSwitch
+              client:load
+              locale={locale}
+              pathEn={pathEn}
+              pathDe={pathDe}
+            />
+          </div>
+        </div>
+        <div>
+          <p class="type-label text-[var(--text)]">{copy.footer.product}</p>
+          <ul class="mt-3 flex flex-col gap-2 type-body-sm">
+            <li>
+              <a
+                href={withBase(appPath)}
+                class="text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                >{copy.footer.openApp}</a
+              >
+            </li>
+            <li>
+              <a
+                href={`${withBase(homePath)}#how`}
+                class="text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                >{copy.footer.presets}</a
+              >
+            </li>
+            <li>
+              <a
+                href={`${withBase(homePath)}#figma`}
+                class="text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                >{copy.footer.figma}</a
+              >
+            </li>
+          </ul>
+        </div>
+        <div>
+          <p class="type-label text-[var(--text)]">{copy.footer.resources}</p>
+          <ul class="mt-3 flex flex-col gap-2 type-body-sm">
+            <li>
+              <a
+                href={`${withBase(homePath)}#how`}
+                class="text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                >{copy.footer.how}</a
+              >
+            </li>
+            <li>
+              <a
+                href={`${withBase(homePath)}#faq`}
+                class="text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                >{copy.footer.docs}</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://github.com/schroepa/Color-Ramp-Generator-"
+                class="text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                >{copy.footer.changelog}</a
+              >
+            </li>
+          </ul>
+        </div>
+        <div>
+          <p class="type-label text-[var(--text)]">{copy.footer.about}</p>
+          <ul class="mt-3 flex flex-col gap-2 type-body-sm">
+            <li>
+              <a
+                href="https://ptrckschrdtr.de"
+                class="text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                >{copy.footer.patrick}</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://github.com/schroepa/Color-Ramp-Generator-"
+                class="text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                >{copy.footer.github}</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://ptrckschrdtr.de/impressum"
+                class="text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                >{copy.footer.imprint}</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://ptrckschrdtr.de/privacy"
+                class="text-[var(--text-muted)] outline-none hover:text-[var(--text)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                >{copy.footer.privacy}</a
+              >
+            </li>
+          </ul>
+        </div>
+      </div>
+      <p
+        class="mx-auto mt-10 max-w-6xl type-caption text-[var(--text-muted)]"
+      >
+        {copy.footer.made} ·{' '}
+        <a
+          href="https://ptrckschrdtr.de"
+          class="underline outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+          >ptrckschrdtr.de</a
+        >
+      </p>
+    </footer>
+  </body>
+</html>

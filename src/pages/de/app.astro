@@ -1,0 +1,28 @@
+---
+import App from '@/App'
+import '@/index.css'
+import { withBase } from '@/i18n/copy'
+
+const title = 'Tintfield · App'
+const canonical = new URL(withBase('/de/app'), Astro.site).href
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Tintfield Farbskalen-Generator" />
+    <title>{title}</title>
+    <link rel="canonical" href={canonical} />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href={new URL(withBase('/app'), Astro.site).href}
+    />
+    <link rel="alternate" hreflang="de" href={canonical} />
+  </head>
+  <body class="min-h-svh bg-[var(--bg)] text-[var(--text)]">
+    <App client:only="react" />
+  </body>
+</html>

@@ -152,6 +152,38 @@ function recomputeScales(
   })
 }
 
+function bootstrapFromQuery(): HydratedProject | null {
+  const params = new URLSearchParams(window.location.search)
+  const hexParam = params.get('hex')
+  const presetParam = params.get('preset')
+  const hex = hexParam ? normalizeHex(hexParam) : null
+  if (!hex && !presetParam) return null
+
+  const store = loadProjectsStore()
+  const active = getActiveProject(store)
+  const preset =
+    (presetParam ? resolvePreset(presetParam) : null) ??
+    resolvePreset(active.generation.presetId) ??
+    getBuiltinPreset('tailwind')!
+  const generation = {
+    ...settingsFromPreset(preset),
+    presetId: preset.id,
+  }
+  const base = hex ?? active.scales[0]?.baseColor ?? '#0d7377'
+  const scale = {
+    ...createScale(base, 'saturated', generation, preset),
+    name: suggestScaleName(base) || 'Color',
+  }
+  const replaced = saveActiveProjectSnapshot({
+    id: active.id,
+    name: active.name,
+    scales: [scale],
+    generation,
+  })
+  window.history.replaceState(null, '', window.location.pathname)
+  return getActiveProject(replaced)
+}
+
 function bootstrapProject(): {
   project: HydratedProject
   projects: ProjectListItem[]
@@ -182,6 +214,13 @@ function bootstrapProject(): {
         scales: hydratedScales,
       },
       projects: listProjects(store),
+    }
+  }
+  const fromQuery = bootstrapFromQuery()
+  if (fromQuery) {
+    return {
+      project: fromQuery,
+      projects: listProjects(loadProjectsStore()),
     }
   }
   const store = loadProjectsStore()
