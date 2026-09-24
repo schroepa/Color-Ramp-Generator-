@@ -22,7 +22,6 @@ import { contrastAgainstWhiteAndBlack } from '@/lib/contrast'
 import {
   baseIndexFor,
   type ColorSystem,
-  generateScaleColors,
   normalizeHex,
   scaleToCssVars,
   scaleToJson,
@@ -32,6 +31,16 @@ import {
   type GenerationSettings,
   normalizeGenerationSettings,
 } from '@/lib/generation-settings'
+import {
+  generateFromPresetCached,
+  getBuiltinPreset,
+  migrateLegacyToPresetId,
+  resolvePreset,
+  saveLastPresetId,
+  settingsFromPreset,
+  type Preset,
+  type CheckResult,
+} from '@/lib/presets'
 import {
   loadRampDensity,
   saveRampDensity,
@@ -71,6 +80,9 @@ export type ColorScale = {
   baseColor: string
   system: ColorSystem
   colors: string[]
+  /** Override base step id; null = preset rule. */
+  baseOverride?: string | null
+  darkColors?: string[]
 }
 
 type MainTab = 'ramps' | 'preview' | 'contrast'
@@ -79,25 +91,65 @@ function createScale(
   baseColor = '#0d7377',
   system: ColorSystem = 'saturated',
   settings: GenerationSettings,
+  preset?: Preset | null,
+  baseOverride: string | null = null,
 ): ColorScale {
   const hex = normalizeHex(baseColor) ?? '#0d7377'
+  const active =
+    preset ??
+    resolvePreset(migrateLegacyToPresetId(settings, settings.presetId)) ??
+    getBuiltinPreset('tailwind')!
+  const light = generateFromPresetCached({
+    baseHex: hex,
+    preset: active,
+    chromaMode: system,
+    baseOverride,
+    theme: 'light',
+  })
+  const dark =
+    active.dark.mode === 'separate-ladder'
+      ? generateFromPresetCached({
+          baseHex: hex,
+          preset: active,
+          chromaMode: system,
+          baseOverride,
+          theme: 'dark',
+        })
+      : null
   return {
     id: crypto.randomUUID(),
     name: suggestScaleName(hex),
     baseColor: hex,
     system,
-    colors: generateScaleColors(hex, system, settings),
+    colors: light.steps.map((s) => s.hex),
+    baseOverride,
+    darkColors: dark?.steps.map((s) => s.hex),
   }
 }
 
 function recomputeScales(
   scales: ColorScale[],
   settings: GenerationSettings,
+  preset?: Preset | null,
 ): ColorScale[] {
-  return scales.map((scale) => ({
-    ...scale,
-    colors: generateScaleColors(scale.baseColor, scale.system, settings),
-  }))
+  const active =
+    preset ??
+    resolvePreset(migrateLegacyToPresetId(settings, settings.presetId)) ??
+    getBuiltinPreset('tailwind')!
+  return scales.map((scale) => {
+    const next = createScale(
+      scale.baseColor,
+      scale.system,
+      settings,
+      active,
+      scale.baseOverride ?? null,
+    )
+    return {
+      ...scale,
+      colors: next.colors,
+      darkColors: next.darkColors,
+    }
+  })
 }
 
 function bootstrapProject(): {
@@ -138,6 +190,55 @@ function bootstrapProject(): {
 
 type CopyFormat = ScaleCopyFormat
 
+function ScaleChecksBadge({ checks }: { checks: CheckResult[] }) {
+  const errors = checks.filter((c) => !c.ok && c.level === 'error')
+  const warnings = checks.filter((c) => !c.ok && c.level === 'warning')
+  const [open, setOpen] = useState(false)
+  let label = 'All roles ok'
+  if (errors.length > 0) label = `${errors.length} role failed`
+  else if (warnings.length > 0) label = `${warnings.length} note`
+  const tone =
+    errors.length > 0 ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'
+
+  return (
+    <div className="relative mt-1">
+      <button
+        type="button"
+        className={cn(
+          'type-caption min-h-8 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]',
+          tone,
+        )}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        {errors.length > 0 ? '✕ ' : warnings.length > 0 ? '⚠ ' : '✓ '}
+        {label}
+      </button>
+      {open ? (
+        <ul className="absolute left-0 z-20 mt-1 max-w-xs rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--bg)] p-2 shadow-[var(--material-shadow)]">
+          {checks
+            .filter((c) => !c.ok)
+            .map((c) => (
+              <li key={c.id} className="type-caption py-1 text-[var(--text)]">
+                {c.message}
+                {c.recommendation ? (
+                  <span className="block text-[var(--text-muted)]">
+                    {c.recommendation}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          {checks.every((c) => c.ok) ? (
+            <li className="type-caption text-[var(--text-muted)]">
+              All role checks passed.
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
 function ScaleEditor({
   scale,
   stepKeys,
@@ -147,6 +248,8 @@ function ScaleEditor({
   dragIndex,
   index,
   surfaceCss,
+  preset,
+  checks,
   onSelectStep,
   onOpenDetail,
   onDragStart,
@@ -169,6 +272,8 @@ function ScaleEditor({
   dragIndex: number | null
   index: number
   surfaceCss: string
+  preset: Preset
+  checks: CheckResult[]
   onSelectStep: (index: number) => void
   onOpenDetail: () => void
   onDragStart: (index: number) => void
@@ -176,7 +281,11 @@ function ScaleEditor({
   onDrop: (index: number) => void
   onDragEnd: () => void
   previewActive: boolean
-  onChange: (patch: Partial<Pick<ColorScale, 'name' | 'baseColor' | 'system'>>) => void
+  onChange: (
+    patch: Partial<
+      Pick<ColorScale, 'name' | 'baseColor' | 'system' | 'baseOverride'>
+    >,
+  ) => void
   onCopy: (format: CopyFormat) => void
   onRemove: () => void
   onTogglePreview: () => void
@@ -239,8 +348,41 @@ function ScaleEditor({
               aria-hidden
             />
             <p className="type-caption mt-0.5 text-[var(--text-faint)]">
-              Base on {stepKeys[baseIndex] ?? 'auto'}
+              {preset.baseRule.mode === 'none' ? (
+                <>Nearest tone: {stepKeys[baseIndex] ?? '—'}</>
+              ) : (
+                <label className="inline-flex items-center gap-1">
+                  Base on
+                  <select
+                    className="type-caption rounded-sm bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                    value={scale.baseOverride ?? ''}
+                    aria-label="Base step"
+                    onChange={(event) => {
+                      const v = event.target.value
+                      onChange({ baseOverride: v === '' ? null : v })
+                    }}
+                  >
+                    <option value="">
+                      {preset.baseRule.mode === 'fixed'
+                        ? `${preset.baseRule.stepId} (${preset.label.replace(/-Schema$/, '')})`
+                        : `Auto (${stepKeys[baseIndex] ?? '—'})`}
+                    </option>
+                    {preset.steps.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                        {preset.baseRule.mode === 'fixed' &&
+                        preset.baseRule.stepId === s.id
+                          ? ' · recommended'
+                          : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </p>
+            {checks.length > 0 ? (
+              <ScaleChecksBadge checks={checks} />
+            ) : null}
           </div>
           <Button
             type="button"
@@ -314,6 +456,13 @@ export function ColorGenerator() {
   const [settings, setSettings] = useState<GenerationSettings>(
     boot.project.generation,
   )
+  const [activePreset, setActivePreset] = useState<Preset>(() => {
+    const id = migrateLegacyToPresetId(
+      boot.project.generation,
+      boot.project.generation.presetId,
+    )
+    return resolvePreset(id) ?? getBuiltinPreset('tailwind')!
+  })
   const [scales, setScales] = useState<ColorScale[]>(boot.project.scales)
   const [density, setDensity] = useState<RampDensity>(() => loadRampDensity())
   const [surface, setSurface] = useState<RampSurface>(() => loadRampSurface())
@@ -331,7 +480,6 @@ export function ColorGenerator() {
   const [previewId, setPreviewId] = useState<string | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
   const baseColorTimer = useRef<number | null>(null)
-  const settingsTimer = useRef<number | null>(null)
   const skipPersist = useRef(false)
 
   const [tabScaleId, setTabScaleId] = useState<string | null>(null)
@@ -344,9 +492,6 @@ export function ColorGenerator() {
     selectedScale && selected
       ? selectedScale.colors[selected.stepIndex] ?? null
       : null
-  const selectedBaseIndex = selectedScale
-    ? baseIndexFor(selectedScale.baseColor, settings)
-    : 0
   const detailScale = detailScaleId
     ? scales.find((s) => s.id === detailScaleId) ?? null
     : null
@@ -355,11 +500,20 @@ export function ColorGenerator() {
     scales[0] ??
     null
   const tabBaseIndex = tabScale
-    ? baseIndexFor(tabScale.baseColor, settings)
+    ? baseIndexFor(tabScale.baseColor, settings, {
+        preset: activePreset,
+        baseOverride: tabScale.baseOverride ?? null,
+      })
     : 0
   const tabStepKeys = tabScale
-    ? stepKeysFor(settings, tabBaseIndex)
-    : stepKeysFor(settings)
+    ? stepKeysFor(settings, tabBaseIndex, activePreset)
+    : stepKeysFor(settings, undefined, activePreset)
+  const selectedBaseIndex = selectedScale
+    ? baseIndexFor(selectedScale.baseColor, settings, {
+        preset: activePreset,
+        baseOverride: selectedScale.baseOverride ?? null,
+      })
+    : 0
 
   const openScaleDetail = (id: string) => {
     setDetailScaleId(id)
@@ -400,10 +554,13 @@ export function ColorGenerator() {
     }
     applyThemePreview(
       previewScale.colors,
-      baseIndexFor(previewScale.baseColor, settings),
+      baseIndexFor(previewScale.baseColor, settings, {
+        preset: activePreset,
+        baseOverride: previewScale.baseOverride ?? null,
+      }),
     )
     return () => clearThemePreview()
-  }, [previewScale, settings])
+  }, [previewScale, settings, activePreset])
 
   useEffect(() => {
     if (previewId && !scales.some((scale) => scale.id === previewId)) {
@@ -431,6 +588,11 @@ export function ColorGenerator() {
     setProjectId(project.id)
     setProjectName(project.name)
     setSettings(project.generation)
+    const id = migrateLegacyToPresetId(
+      project.generation,
+      project.generation.presetId,
+    )
+    setActivePreset(resolvePreset(id) ?? getBuiltinPreset('tailwind')!)
     setScales(project.scales)
     setProjects(listProjects(store))
     setPreviewId(null)
@@ -464,7 +626,6 @@ export function ColorGenerator() {
   useEffect(
     () => () => {
       if (baseColorTimer.current != null) window.clearTimeout(baseColorTimer.current)
-      if (settingsTimer.current != null) window.clearTimeout(settingsTimer.current)
     },
     [],
   )
@@ -485,21 +646,40 @@ export function ColorGenerator() {
     }, 450)
   }
 
-  const announceSettingsUpdated = () => {
-    if (settingsTimer.current != null) window.clearTimeout(settingsTimer.current)
-    settingsTimer.current = window.setTimeout(() => {
-      announce('Settings updated')
-      settingsTimer.current = null
-    }, 450)
-  }
-
-  const handleSettingsChange = (patch: Partial<GenerationSettings>) => {
-    setSettings((prev) => {
-      const next = normalizeGenerationSettings({ ...prev, ...patch })
-      setScales((current) => recomputeScales(current, next))
-      return next
+  const handlePresetChange = (next: Preset) => {
+    const prevPreset = activePreset
+    const prevSettings = settings
+    const prevScales = scales
+    const nextSettings = normalizeGenerationSettings({
+      ...settingsFromPreset(next),
+      presetId: next.id,
     })
-    announceSettingsUpdated()
+    setActivePreset(next)
+    setSettings(nextSettings)
+    setScales((current) =>
+      recomputeScales(
+        current.map((s) => ({
+          ...s,
+          baseOverride:
+            s.baseOverride && next.steps.some((st) => st.id === s.baseOverride)
+              ? s.baseOverride
+              : null,
+        })),
+        nextSettings,
+        next,
+      ),
+    )
+    saveLastPresetId(next.id)
+    sonnerToast(`Switched to ${next.label}`, {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          setActivePreset(prevPreset)
+          setSettings(prevSettings)
+          setScales(prevScales)
+        },
+      },
+    })
   }
 
   const handleDensityChange = (next: RampDensity) => {
@@ -534,8 +714,30 @@ export function ColorGenerator() {
     announce('Set deleted')
   }
 
-  const addScale = (baseColor: string, system: ColorSystem = 'saturated') => {
-    setScales((prev) => [...prev, createScale(baseColor, system, settings)])
+  const addScale = (
+    baseColor: string,
+    system: ColorSystem = 'saturated',
+    presetId?: string,
+  ) => {
+    let preset = activePreset
+    let nextSettings = settings
+    if (presetId) {
+      const resolved = resolvePreset(presetId)
+      if (resolved) {
+        preset = resolved
+        nextSettings = normalizeGenerationSettings({
+          ...settingsFromPreset(resolved),
+          presetId: resolved.id,
+        })
+        setActivePreset(resolved)
+        setSettings(nextSettings)
+        saveLastPresetId(resolved.id)
+      }
+    }
+    setScales((prev) => [
+      ...prev,
+      createScale(baseColor, system, nextSettings, preset),
+    ])
     announce('Scale added')
   }
 
@@ -569,7 +771,9 @@ export function ColorGenerator() {
 
   const updateScale = (
     id: string,
-    patch: Partial<Pick<ColorScale, 'name' | 'baseColor' | 'system'>>,
+    patch: Partial<
+      Pick<ColorScale, 'name' | 'baseColor' | 'system' | 'baseOverride'>
+    >,
   ) => {
     setScales((prev) =>
       prev.map((scale) => {
@@ -579,26 +783,40 @@ export function ColorGenerator() {
           : scale.baseColor
         const system = patch.system ?? scale.system
         const name = patch.name ?? scale.name
+        const baseOverride =
+          patch.baseOverride !== undefined
+            ? patch.baseOverride
+            : (scale.baseOverride ?? null)
+        const regenerated = createScale(
+          baseColor,
+          system,
+          settings,
+          activePreset,
+          baseOverride,
+        )
         return {
           ...scale,
           name,
           baseColor,
           system,
-          colors: generateScaleColors(baseColor, system, settings),
+          baseOverride,
+          colors: regenerated.colors,
+          darkColors: regenerated.darkColors,
         }
       }),
     )
     if (patch.system) announce('System updated')
     if (patch.baseColor) announceBaseColor()
     if (patch.name !== undefined) announceName()
+    if (patch.baseOverride !== undefined) announce('Base step updated')
   }
 
   const copyScale = async (scale: ColorScale, format: CopyFormat) => {
     const payload =
       format === 'json'
-        ? scaleToJson(scale.colors, settings)
+        ? scaleToJson(scale.colors, settings, activePreset)
         : format === 'css'
-          ? `:root {\n${scaleToCssVars(scale.colors, 'color', settings)}\n}`
+          ? `:root {\n${scaleToCssVars(scale.colors, 'color', settings, activePreset)}\n}`
           : scale.colors.join('\n')
     try {
       await navigator.clipboard.writeText(payload)
@@ -666,8 +884,8 @@ export function ColorGenerator() {
     rampPreviews?: boolean
   }) => (
     <GenerationSettingsPanel
-      settings={settings}
-      onChange={handleSettingsChange}
+      preset={activePreset}
+      onPresetChange={handlePresetChange}
       density={density}
       onDensityChange={handleDensityChange}
       showDensity={opts?.showDensity ?? false}
@@ -754,7 +972,7 @@ export function ColorGenerator() {
       </header>
 
       {showEntry ? (
-        <EntryState onStart={(hex) => addScale(hex)} />
+        <EntryState onStart={(hex, presetId) => addScale(hex, 'saturated', presetId)} />
       ) : (
         <main
           className={cn(
@@ -780,7 +998,14 @@ export function ColorGenerator() {
                     baseIndex={baseIndexFor(
                       (previewScale ?? scales[0]!).baseColor,
                       settings,
+                      {
+                        preset: activePreset,
+                        baseOverride:
+                          (previewScale ?? scales[0]!).baseOverride ?? null,
+                      },
                     )}
+                    preset={activePreset}
+                    darkColors={(previewScale ?? scales[0]!).darkColors}
                   />
                 ) : null}
               </>
@@ -844,8 +1069,26 @@ export function ColorGenerator() {
                   ) : null}
                   <ul className="flex flex-col gap-8">
                     {scales.map((scale, index) => {
-                      const scaleBase = baseIndexFor(scale.baseColor, settings)
-                      const scaleKeys = stepKeysFor(settings, scaleBase)
+                      const scaleBase = baseIndexFor(
+                        scale.baseColor,
+                        settings,
+                        {
+                          preset: activePreset,
+                          baseOverride: scale.baseOverride ?? null,
+                        },
+                      )
+                      const scaleKeys = stepKeysFor(
+                        settings,
+                        scaleBase,
+                        activePreset,
+                      )
+                      const gen = generateFromPresetCached({
+                        baseHex: scale.baseColor,
+                        preset: activePreset,
+                        chromaMode: scale.system,
+                        baseOverride: scale.baseOverride ?? null,
+                        theme: 'light',
+                      })
                       return (
                       <ScaleEditor
                         key={scale.id}
@@ -856,6 +1099,8 @@ export function ColorGenerator() {
                         index={index}
                         dragIndex={dragIndex}
                         surfaceCss={surfaceMeta.css}
+                        preset={activePreset}
+                        checks={gen.checks}
                         selectedStep={
                           selected?.scaleId === scale.id
                             ? selected.stepIndex
@@ -918,14 +1163,17 @@ export function ColorGenerator() {
                       <UiRampPreview
                         colors={tabScale.colors}
                         baseIndex={tabBaseIndex}
+                        preset={activePreset}
                         className="mt-0 border-0 pt-0"
                       />
                     </div>
                     <div className="rounded-[var(--radius-md)] bg-[#121212] p-5 text-white">
                       <p className="type-caption mb-3 opacity-60">Dark</p>
                       <UiRampPreview
-                        colors={tabScale.colors}
+                        colors={tabScale.darkColors ?? tabScale.colors}
                         baseIndex={tabBaseIndex}
+                        preset={activePreset}
+                        darkColors={tabScale.darkColors}
                         className="mt-0 border-0 pt-0"
                       />
                     </div>
@@ -1002,8 +1250,9 @@ export function ColorGenerator() {
               <StepInspector
                 hex={selectedHex}
                 step={
-                  stepKeysFor(settings, selectedBaseIndex)[selected.stepIndex] ??
-                  String(selected.stepIndex)
+                  stepKeysFor(settings, selectedBaseIndex, activePreset)[
+                    selected.stepIndex
+                  ] ?? String(selected.stepIndex)
                 }
                 isBase={selected.stepIndex === selectedBaseIndex}
                 neighbors={selectedScale.colors}
@@ -1077,8 +1326,9 @@ export function ColorGenerator() {
             <StepInspector
               hex={selectedHex}
               step={
-                stepKeysFor(settings, selectedBaseIndex)[selected.stepIndex] ??
-                String(selected.stepIndex)
+                stepKeysFor(settings, selectedBaseIndex, activePreset)[
+                  selected.stepIndex
+                ] ?? String(selected.stepIndex)
               }
               isBase={selected.stepIndex === selectedBaseIndex}
               neighbors={selectedScale.colors}
@@ -1106,9 +1356,16 @@ export function ColorGenerator() {
           colors={detailScale.colors}
           stepKeys={stepKeysFor(
             settings,
-            baseIndexFor(detailScale.baseColor, settings),
+            baseIndexFor(detailScale.baseColor, settings, {
+              preset: activePreset,
+              baseOverride: detailScale.baseOverride ?? null,
+            }),
+            activePreset,
           )}
-          baseIndex={baseIndexFor(detailScale.baseColor, settings)}
+          baseIndex={baseIndexFor(detailScale.baseColor, settings, {
+            preset: activePreset,
+            baseOverride: detailScale.baseOverride ?? null,
+          })}
           onBack={closeScaleDetail}
           onChange={(patch) => updateScale(detailScale.id, patch)}
           onCopyHex={(hex) => {
@@ -1136,6 +1393,7 @@ export function ColorGenerator() {
         setName={projectName}
         scales={scales}
         settings={settings}
+        preset={activePreset}
         projectJson={projectToJson(projectName, scales, settings)}
         onCopied={(label) => announce(label === 'Exported' ? 'Exported' : `${label} copied`)}
         onFailed={() => announce('Copy failed', 'error')}

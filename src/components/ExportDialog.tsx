@@ -17,10 +17,12 @@ import {
   setToScss,
   setToSvg,
   setToTailwind,
+  setToTailwindV4,
   type SetExportFormat,
 } from '@/lib/export-formats'
 import type { GenerationSettings } from '@/lib/generation-settings'
 import type { ScaleLike } from '@/lib/palette-storage'
+import type { Preset } from '@/lib/presets/types'
 import { cn } from '@/lib/utils'
 
 type ExportDialogProps = {
@@ -30,6 +32,7 @@ type ExportDialogProps = {
   scales: ScaleLike[]
   settings: GenerationSettings
   projectJson: string
+  preset?: Preset | null
   onCopied: (label: string) => void
   onFailed: () => void
 }
@@ -37,11 +40,22 @@ type ExportDialogProps = {
 const FORMATS: { format: SetExportFormat; label: string }[] = [
   { format: 'css', label: 'CSS' },
   { format: 'scss', label: 'SCSS' },
-  { format: 'tailwind', label: 'Tailwind' },
+  { format: 'tailwind', label: 'Tailwind v3' },
+  { format: 'tailwind-v4', label: 'Tailwind v4' },
   { format: 'dtcg', label: 'Design tokens' },
   { format: 'svg', label: 'SVG' },
   { format: 'json', label: 'JSON' },
 ]
+
+function defaultFormat(preset?: Preset | null): SetExportFormat {
+  const f = preset?.exportDefaults.format
+  if (f === 'tailwind-v4') return 'tailwind-v4'
+  if (f === 'tailwind-v3') return 'tailwind'
+  if (f === 'scss') return 'scss'
+  if (f === 'dtcg') return 'dtcg'
+  if (f === 'json') return 'json'
+  return 'css'
+}
 
 /** Full export dialog with live preview (concept 4.8 · review v2). */
 export function ExportDialog({
@@ -51,28 +65,33 @@ export function ExportDialog({
   scales,
   settings,
   projectJson,
+  preset,
   onCopied,
   onFailed,
 }: ExportDialogProps) {
-  const [format, setFormat] = useState<SetExportFormat>('css')
+  const [format, setFormat] = useState<SetExportFormat>(() =>
+    defaultFormat(preset),
+  )
 
   const preview = useMemo(() => {
     switch (format) {
       case 'css':
-        return setToCss(scales, settings)
+        return setToCss(scales, settings, preset)
       case 'scss':
-        return setToScss(scales, settings)
+        return setToScss(scales, settings, preset)
       case 'tailwind':
-        return setToTailwind(scales, settings)
+        return setToTailwind(scales, settings, preset)
+      case 'tailwind-v4':
+        return setToTailwindV4(scales, settings, preset)
       case 'dtcg':
-        return setToDtcg(scales, settings)
+        return setToDtcg(scales, settings, preset)
       case 'svg':
-        return setToSvg(scales, settings)
+        return setToSvg(scales, settings, preset)
       case 'json':
       default:
         return projectJson
     }
-  }, [format, scales, settings, projectJson])
+  }, [format, scales, settings, projectJson, preset])
 
   if (!open) return null
 

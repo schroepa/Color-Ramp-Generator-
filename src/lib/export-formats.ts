@@ -1,13 +1,21 @@
 import {
-  scaleToCssVars,
   scaleToStepRecord,
   stepKeysFor,
 } from '@/lib/color-system'
 import type { GenerationSettings } from '@/lib/generation-settings'
 import type { ScaleLike } from '@/lib/palette-storage'
+import { migrateLegacyToPresetId, resolvePreset } from '@/lib/presets'
+import type { Preset } from '@/lib/presets/types'
 import { suggestScaleName } from '@/lib/scale-name'
 
-export type SetExportFormat = 'json' | 'css' | 'tailwind' | 'dtcg' | 'scss' | 'svg'
+export type SetExportFormat =
+  | 'json'
+  | 'css'
+  | 'tailwind'
+  | 'tailwind-v4'
+  | 'dtcg'
+  | 'scss'
+  | 'svg'
 
 function slugifyToken(input: string, fallback: string): string {
   const slug = input
@@ -15,17 +23,33 @@ function slugifyToken(input: string, fallback: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
-  return slug || fallback
+  const safe = slug.replace(/^[0-9]+/, '') || slug
+  return safe || fallback
 }
 
 function scaleDisplayName(scale: ScaleLike): string {
   const named = scale.name.trim()
   if (named) return named
-  return suggestScaleName(scale.baseColor) || scale.baseColor
+  return suggestScaleName(scale.baseColor) || 'color'
 }
 
 function scaleTokenName(scale: ScaleLike, index: number): string {
   return slugifyToken(scaleDisplayName(scale), `color-${index + 1}`)
+}
+
+function resolveExportPreset(
+  generation: GenerationSettings,
+  preset?: Preset | null,
+): Preset {
+  if (preset) return preset
+  return (
+    resolvePreset(migrateLegacyToPresetId(generation, generation.presetId)) ??
+    resolvePreset('tailwind')!
+  )
+}
+
+function applyTokenPattern(pattern: string, scale: string, step: string): string {
+  return pattern.replaceAll('{scale}', scale).replaceAll('{step}', step)
 }
 
 function downloadText(filename: string, contents: string, mime: string): void {
@@ -63,27 +87,60 @@ export function setToProjectJson(
 export function setToCss(
   scales: ScaleLike[],
   generation: GenerationSettings,
+  preset?: Preset | null,
 ): string {
   if (scales.length === 0) return '/* No scales */\n'
+  const active = resolveExportPreset(generation, preset)
+  const pattern = active.exportDefaults.tokenPattern
   const blocks = scales.map((scale, index) => {
-    const prefix = scaleTokenName(scale, index)
-    return `/* ${scaleDisplayName(scale)} */\n:root {\n${scaleToCssVars(scale.colors, prefix, generation)}\n}`
+    const scaleName = scaleTokenName(scale, index)
+    const keys = stepKeysFor(generation, undefined, active)
+    const lines = keys.map((step, i) => {
+      const hex = scale.colors[i] ?? '#000000'
+      const token = applyTokenPattern(pattern, scaleName, step)
+      const name = token.startsWith('--')
+        ? token
+        : `--${token.replace(/^\$/, '').replaceAll('{', '').replaceAll('}', '')}`
+      return `  ${name}: ${hex};`
+    })
+    return `/* ${scaleDisplayName(scale)} */\n:root {\n${lines.join('\n')}\n}`
   })
   return `${blocks.join('\n\n')}\n`
 }
 
+export function setToTailwindV4(
+  scales: ScaleLike[],
+  generation: GenerationSettings,
+  preset?: Preset | null,
+): string {
+  const active = resolveExportPreset(generation, preset)
+  const lines: string[] = ['@theme {']
+  scales.forEach((scale, index) => {
+    const scaleName = scaleTokenName(scale, index)
+    const keys = stepKeysFor(generation, undefined, active)
+    keys.forEach((step, i) => {
+      lines.push(
+        `  --color-${scaleName}-${step}: ${scale.colors[i] ?? '#000000'};`,
+      )
+    })
+  })
+  lines.push('}')
+  return `${lines.join('\n')}\n`
+}
+
 /**
  * Tailwind theme.extend.colors snippet (JS).
- * Keys follow the active generation preset (e.g. 50…950).
  */
 export function setToTailwind(
   scales: ScaleLike[],
   generation: GenerationSettings,
+  preset?: Preset | null,
 ): string {
+  const active = resolveExportPreset(generation, preset)
   const colors: Record<string, Record<string, string>> = {}
   scales.forEach((scale, index) => {
     const name = scaleTokenName(scale, index)
-    const steps = scaleToStepRecord(scale.colors, generation)
+    const steps = scaleToStepRecord(scale.colors, generation, undefined, active)
     colors[name] = Object.fromEntries(
       Object.entries(steps).map(([key, hex]) => [key, hex.toUpperCase()]),
     )
@@ -101,14 +158,16 @@ export function setToTailwind(
 export function setToDtcg(
   scales: ScaleLike[],
   generation: GenerationSettings,
+  preset?: Preset | null,
 ): string {
+  const active = resolveExportPreset(generation, preset)
   const color: Record<
     string,
     Record<string, { $type: 'color'; $value: string }>
   > = {}
   scales.forEach((scale, index) => {
     const name = scaleTokenName(scale, index)
-    const keys = stepKeysFor(generation)
+    const keys = stepKeysFor(generation, undefined, active)
     const group: Record<string, { $type: 'color'; $value: string }> = {}
     keys.forEach((key, i) => {
       group[key] = {
@@ -125,11 +184,13 @@ export function setToDtcg(
 export function setToScss(
   scales: ScaleLike[],
   generation: GenerationSettings,
+  preset?: Preset | null,
 ): string {
   if (scales.length === 0) return '// No scales\n'
+  const active = resolveExportPreset(generation, preset)
   const blocks = scales.map((scale, index) => {
     const name = scaleTokenName(scale, index)
-    const steps = scaleToStepRecord(scale.colors, generation)
+    const steps = scaleToStepRecord(scale.colors, generation, undefined, active)
     const entries = Object.entries(steps)
       .map(([key, hex]) => `  '${key}': ${hex.toUpperCase()},`)
       .join('\n')
@@ -142,7 +203,9 @@ export function setToScss(
 export function setToSvg(
   scales: ScaleLike[],
   generation: GenerationSettings,
+  preset?: Preset | null,
 ): string {
+  const active = resolveExportPreset(generation, preset)
   const swatch = 40
   const gap = 0
   const rowGap = 12
@@ -156,7 +219,7 @@ export function setToSvg(
     .map((scale, row) => {
       const y = row * (swatch + labelH + rowGap)
       const label = escapeXml(scaleDisplayName(scale))
-      const keys = stepKeysFor(generation)
+      const keys = stepKeysFor(generation, undefined, active)
       const rects = scale.colors
         .map((hex, i) => {
           const x = i * (swatch + gap)
@@ -201,6 +264,9 @@ export function downloadSetExport(
       break
     case 'tailwind':
       downloadText(`tintfield-${stem}.tailwind.js`, payload, 'text/javascript')
+      break
+    case 'tailwind-v4':
+      downloadText(`tintfield-${stem}.theme.css`, payload, 'text/css')
       break
     case 'dtcg':
       downloadText(`tintfield-${stem}.tokens.json`, payload, 'application/json')

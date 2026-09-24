@@ -26,7 +26,7 @@ type SystemSwitchProps = {
   className?: string
 }
 
-const PREVIEW_SETTINGS = settingsForPreset('compact')
+const PREVIEW_SETTINGS = settingsForPreset('open-color')
 
 /**
  * Quiet system picker with a 5-swatch preview per option.

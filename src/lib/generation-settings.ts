@@ -1,135 +1,104 @@
+import {
+  DEFAULT_PRESET_ID,
+  getBuiltinPreset,
+  migrateLegacyToPresetId,
+  settingsFromPreset,
+} from '@/lib/presets'
+
 export const GENERATION_STORAGE_KEY = 'tintfield.generation.v1'
 
 export const STEPS_MIN = 1
 export const STEPS_MAX = 16
 
-/** Matches ColorBox-style OKLCH endpoints (light soft / dark deep). */
-export const DEFAULT_LIGHTEST_LIGHTNESS = 0.985
+export const DEFAULT_LIGHTEST_LIGHTNESS = 0.97
 export const DEFAULT_DARKEST_LIGHTNESS = 0.12
 
 export type GenerationSettings = {
-  /** Colors lighter than the base (independent of darkSteps). */
   lightSteps: number
-  /** Colors darker than the base (independent of lightSteps). */
   darkSteps: number
-  /** OKLCH lightness of the lightest swatch (0–1). */
   lightestLightness: number
-  /** OKLCH lightness of the darkest swatch (0–1). */
   darkestLightness: number
+  /** Active design-system preset id (set-level). */
+  presetId?: string
 }
 
+/** @deprecated Use Preset ids from `@/lib/presets`. Kept for migration. */
 export type GenerationPresetId =
   | 'tailwind'
   | 'tailwind-dense'
+  | 'fine-50'
   | 'material'
+  | 'material3'
   | 'compact'
+  | 'radix'
+  | 'ant'
+  | 'carbon'
+  | 'open-color'
 
 export type GenerationPreset = {
   id: GenerationPresetId
   label: string
   hint: string
   settings: GenerationSettings
-  /** Export / CSS step keys (length = lightSteps + 1 + darkSteps). */
   stepKeys: readonly string[]
 }
 
+/** Legacy list — UI should prefer BUILTIN_PRESETS. */
 export const GENERATION_PRESETS: GenerationPreset[] = [
   {
     id: 'tailwind',
-    label: 'Tailwind',
-    hint: '11 steps — drop-in for theme.colors',
-    settings: {
-      lightSteps: 5,
-      darkSteps: 5,
-      lightestLightness: DEFAULT_LIGHTEST_LIGHTNESS,
-      darkestLightness: DEFAULT_DARKEST_LIGHTNESS,
-    },
-    stepKeys: [
-      '50',
-      '100',
-      '200',
-      '300',
-      '400',
-      '500',
-      '600',
-      '700',
-      '800',
-      '900',
-      '950',
-    ],
+    label: 'Tailwind-Schema',
+    hint: '11 steps 50–950',
+    settings: { ...settingsFromPreset(getBuiltinPreset('tailwind')!), presetId: 'tailwind' },
+    stepKeys: getBuiltinPreset('tailwind')!.steps.map((s) => s.id),
   },
   {
-    id: 'tailwind-dense',
-    label: 'Tailwind dense',
-    hint: '19 steps — half-stops 50…950',
-    settings: {
-      lightSteps: 9,
-      darkSteps: 9,
-      lightestLightness: DEFAULT_LIGHTEST_LIGHTNESS,
-      darkestLightness: DEFAULT_DARKEST_LIGHTNESS,
-    },
-    stepKeys: [
-      '50',
-      '100',
-      '150',
-      '200',
-      '250',
-      '300',
-      '350',
-      '400',
-      '450',
-      '500',
-      '550',
-      '600',
-      '650',
-      '700',
-      '750',
-      '800',
-      '850',
-      '900',
-      '950',
-    ],
+    id: 'fine-50',
+    label: 'Fein (50er)',
+    hint: '19 half-steps',
+    settings: { ...settingsFromPreset(getBuiltinPreset('fine-50')!), presetId: 'fine-50' },
+    stepKeys: getBuiltinPreset('fine-50')!.steps.map((s) => s.id),
   },
   {
-    id: 'material',
-    label: 'Material',
-    hint: '10 steps — Material 50…900',
-    settings: {
-      lightSteps: 4,
-      darkSteps: 5,
-      lightestLightness: DEFAULT_LIGHTEST_LIGHTNESS,
-      darkestLightness: DEFAULT_DARKEST_LIGHTNESS,
-    },
-    stepKeys: [
-      '50',
-      '100',
-      '200',
-      '300',
-      '400',
-      '500',
-      '600',
-      '700',
-      '800',
-      '900',
-    ],
+    id: 'radix',
+    label: 'Radix-Schema',
+    hint: '12 role steps',
+    settings: { ...settingsFromPreset(getBuiltinPreset('radix')!), presetId: 'radix' },
+    stepKeys: getBuiltinPreset('radix')!.steps.map((s) => s.id),
   },
   {
-    id: 'compact',
-    label: 'Compact',
-    hint: '5 steps — quick UI tokens',
-    settings: {
-      lightSteps: 2,
-      darkSteps: 2,
-      lightestLightness: DEFAULT_LIGHTEST_LIGHTNESS,
-      darkestLightness: DEFAULT_DARKEST_LIGHTNESS,
-    },
-    stepKeys: ['100', '300', '500', '700', '900'],
+    id: 'material3',
+    label: 'Material-3-Schema',
+    hint: '13 L* tones',
+    settings: { ...settingsFromPreset(getBuiltinPreset('material3')!), presetId: 'material3' },
+    stepKeys: getBuiltinPreset('material3')!.steps.map((s) => s.id),
+  },
+  {
+    id: 'ant',
+    label: 'Ant-Design-Schema',
+    hint: '10 steps, base 6',
+    settings: { ...settingsFromPreset(getBuiltinPreset('ant')!), presetId: 'ant' },
+    stepKeys: getBuiltinPreset('ant')!.steps.map((s) => s.id),
+  },
+  {
+    id: 'carbon',
+    label: 'Carbon-Schema',
+    hint: '10–100',
+    settings: { ...settingsFromPreset(getBuiltinPreset('carbon')!), presetId: 'carbon' },
+    stepKeys: getBuiltinPreset('carbon')!.steps.map((s) => s.id),
+  },
+  {
+    id: 'open-color',
+    label: 'Open-Color-Schema',
+    hint: '0–9',
+    settings: { ...settingsFromPreset(getBuiltinPreset('open-color')!), presetId: 'open-color' },
+    stepKeys: getBuiltinPreset('open-color')!.steps.map((s) => s.id),
   },
 ]
 
-/** Default matches Tailwind dense (previous product default). */
 export const DEFAULT_GENERATION_SETTINGS: GenerationSettings = {
-  ...GENERATION_PRESETS.find((p) => p.id === 'tailwind-dense')!.settings,
+  ...settingsFromPreset(getBuiltinPreset(DEFAULT_PRESET_ID)!),
+  presetId: DEFAULT_PRESET_ID,
 }
 
 type StoredPayload = {
@@ -180,38 +149,50 @@ export function normalizeGenerationSettings(
     lightestLightness = DEFAULT_GENERATION_SETTINGS.lightestLightness
     darkestLightness = DEFAULT_GENERATION_SETTINGS.darkestLightness
   }
-  return { lightSteps, darkSteps, lightestLightness, darkestLightness }
+  const presetId = migrateLegacyToPresetId(
+    { lightSteps, darkSteps, lightestLightness, darkestLightness },
+    input?.presetId,
+  )
+  const preset = getBuiltinPreset(presetId)
+  if (preset) {
+    return { ...settingsFromPreset(preset), presetId }
+  }
+  return { lightSteps, darkSteps, lightestLightness, darkestLightness, presetId }
 }
 
 export function totalSteps(settings: GenerationSettings): number {
   return settings.lightSteps + 1 + settings.darkSteps
 }
 
-/** Match a named preset by step counts only (lightness can still be custom). */
 export function matchGenerationPreset(
   settings: GenerationSettings,
 ): GenerationPresetId | null {
-  const found = GENERATION_PRESETS.find(
-    (preset) =>
-      preset.settings.lightSteps === settings.lightSteps &&
-      preset.settings.darkSteps === settings.darkSteps,
-  )
-  return found?.id ?? null
+  const id = settings.presetId ?? migrateLegacyToPresetId(settings)
+  const found = GENERATION_PRESETS.find((p) => p.id === id)
+  return (found?.id as GenerationPresetId) ?? null
 }
 
 export function settingsForPreset(id: GenerationPresetId): GenerationSettings {
-  const preset = GENERATION_PRESETS.find((item) => item.id === id)
-  return { ...(preset ?? GENERATION_PRESETS[1]!).settings }
+  const alias =
+    id === 'tailwind-dense'
+      ? 'fine-50'
+      : id === 'material'
+        ? 'material3'
+        : id === 'compact'
+          ? 'open-color'
+          : id
+  const preset = getBuiltinPreset(alias) ?? getBuiltinPreset(DEFAULT_PRESET_ID)!
+  return { ...settingsFromPreset(preset), presetId: preset.id }
 }
 
 export function stepKeysForPreset(id: GenerationPresetId): readonly string[] {
-  const preset = GENERATION_PRESETS.find((item) => item.id === id)
-  return preset?.stepKeys ?? GENERATION_PRESETS[1]!.stepKeys
+  const settings = settingsForPreset(id)
+  const preset = getBuiltinPreset(settings.presetId ?? DEFAULT_PRESET_ID)
+  return preset?.steps.map((s) => s.id) ?? GENERATION_PRESETS[0]!.stepKeys
 }
 
-/** @deprecated Prefer matchGenerationPreset — true for dense 19-step Tailwind keys. */
 export function usesTailwindStepKeys(settings: GenerationSettings): boolean {
-  return matchGenerationPreset(settings) === 'tailwind-dense'
+  return (settings.presetId ?? matchGenerationPreset(settings)) === 'fine-50'
 }
 
 export function loadGenerationSettings(): GenerationSettings {
