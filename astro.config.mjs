@@ -7,8 +7,8 @@ import { defineConfig } from 'astro/config'
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
-  site: 'https://ptrckschrdtr.de',
-  base: '/tintfield',
+  site: 'https://tintfield.ptrckschrdtr.de',
+  base: '/',
   integrations: [react()],
   vite: {
     plugins: [tailwindcss()],

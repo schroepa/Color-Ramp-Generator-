@@ -355,7 +355,8 @@ export function copyFor(locale: Locale): Copy {
 }
 
 export function withBase(path: string): string {
-  const base = '/tintfield'
-  if (!path || path === '/') return `${base}/`
+  const raw = import.meta.env.BASE_URL || '/'
+  const base = raw.replace(/\/$/, '')
+  if (!path || path === '/') return `${base}/` || '/'
   return `${base}${path.startsWith('/') ? path : `/${path}`}`
 }

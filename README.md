@@ -4,7 +4,7 @@ OKLCH color scale generator with contrast-ladder presets (Tailwind, Radix, Mater
 
 ## Stack
 
-- Astro + React + TypeScript (base `/tintfield`)
+- Astro + React + TypeScript
 - Tailwind CSS + shadcn/ui-style primitives
 - [culori](https://culorijs.org/) for OKLCH / contrast math
 
@@ -15,7 +15,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:4321/tintfield/` (Astro base path).
+Open `http://localhost:4321/`.
 
 ```bash
 npm run build   # production → dist/
@@ -27,13 +27,12 @@ npm test        # vitest
 
 | Path | Content |
 |---|---|
-| `/tintfield/` | Landing (EN) |
-| `/tintfield/de/` | Landing (DE) |
-| `/tintfield/app` | Generator |
-| `/tintfield/de/app` | Generator (DE shell) |
+| `/` | Landing (EN) |
+| `/de/` | Landing (DE) |
+| `/app` | Generator |
+| `/de/app` | Generator (DE shell) |
 
 ## Publish
 
+Live: `https://tintfield.ptrckschrdtr.de`  
 Remote: `https://github.com/schroepa/Color-Ramp-Generator-`.
-
-Parent site should rewrite `/tintfield/*` to this deployment.
