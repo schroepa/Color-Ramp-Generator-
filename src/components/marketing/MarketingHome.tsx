@@ -141,10 +141,10 @@ export function MarketingHome({ locale, copy }: MarketingHomeProps) {
         </p>
 
         <div
-          className="flex w-full flex-col gap-6 text-left"
+          className="flex w-full flex-col items-center gap-6"
           id="hero-demo"
         >
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full max-w-md flex-wrap items-center justify-center gap-2">
             <label className="relative size-12 min-h-11 min-w-11 shrink-0 cursor-pointer overflow-hidden rounded-[var(--radius-md)] shadow-[inset_0_0_0_1px_rgba(128,128,128,0.35)]">
               <input
                 type="color"
@@ -159,14 +159,14 @@ export function MarketingHome({ locale, copy }: MarketingHomeProps) {
               onChange={(e) => setHexInput(e.target.value)}
               placeholder={copy.hero.placeholder}
               spellCheck={false}
-              className="h-12 min-h-11 min-w-0 flex-1 rounded-full bg-[var(--chip)] px-4 type-mono text-[var(--text)] uppercase outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] placeholder:normal-case placeholder:type-body placeholder:text-[var(--text-faint)]"
+              className="h-12 min-h-11 min-w-0 flex-1 rounded-full bg-[var(--chip)] px-4 text-center type-mono text-[var(--text)] uppercase outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] placeholder:normal-case placeholder:type-body placeholder:text-[var(--text-faint)]"
             />
           </div>
           {hint ? (
             <p className="type-caption text-[var(--text-muted)]">{hint}</p>
           ) : null}
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             <span className="type-caption text-[var(--text-muted)]">
               {copy.hero.try}
             </span>
@@ -182,12 +182,12 @@ export function MarketingHome({ locale, copy }: MarketingHomeProps) {
             ))}
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex w-full flex-col items-center gap-2">
             <span className="type-caption text-[var(--text-muted)]">
               {copy.hero.for}
             </span>
             <div
-              className="hidden flex-wrap gap-2 tablet:flex"
+              className="hidden flex-wrap justify-center gap-2 tablet:flex"
               role="radiogroup"
               aria-label="Preset"
             >
@@ -219,7 +219,7 @@ export function MarketingHome({ locale, copy }: MarketingHomeProps) {
               })}
             </div>
             <select
-              className="type-label h-12 min-h-11 w-full rounded-full bg-[var(--chip)] px-4 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] tablet:hidden"
+              className="type-label h-12 min-h-11 w-full max-w-md rounded-full bg-[var(--chip)] px-4 text-center outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] tablet:hidden"
               value={presetId}
               onChange={(e) => setPresetId(e.target.value)}
               aria-label={copy.hero.for}
@@ -235,7 +235,7 @@ export function MarketingHome({ locale, copy }: MarketingHomeProps) {
             </select>
           </div>
 
-          <div className="flex h-12 overflow-hidden rounded-[var(--radius-md)] tablet:h-14">
+          <div className="flex h-12 w-full overflow-hidden rounded-[var(--radius-md)] tablet:h-14">
             {colors.map((c, i) => (
               <div
                 key={preset.steps[i]?.id ?? i}
@@ -251,7 +251,7 @@ export function MarketingHome({ locale, copy }: MarketingHomeProps) {
             ))}
           </div>
           <div
-            className="grid gap-1"
+            className="grid w-full gap-1"
             style={{
               gridTemplateColumns: `repeat(${colors.length}, minmax(0,1fr))`,
             }}
@@ -266,7 +266,7 @@ export function MarketingHome({ locale, copy }: MarketingHomeProps) {
             ))}
           </div>
 
-          <ul className="flex flex-col gap-1 type-body-sm text-[var(--text)]">
+          <ul className="flex flex-col items-center gap-1 type-body-sm text-[var(--text)]">
             <li>✓ {copy.hero.checkSit.replace('{step}', baseStep)}</li>
             <li className="hidden tablet:list-item">
               ✓ {copy.hero.checkText.replace('{step}', aaStep)}
@@ -274,10 +274,10 @@ export function MarketingHome({ locale, copy }: MarketingHomeProps) {
             <li>✓ {quality.ok ? copy.hero.checkEven : quality.label}</li>
           </ul>
 
-          <div className="flex flex-col items-start gap-2" id="hero-open">
+          <div className="flex flex-col items-center gap-2" id="hero-open">
             <a
               href={appHref}
-              className="type-label inline-flex h-[52px] min-h-11 w-full items-center justify-center rounded-full px-6 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] tablet:w-auto"
+              className="type-label inline-flex h-[52px] min-h-11 w-full max-w-xs items-center justify-center rounded-full px-6 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] tablet:w-auto"
               style={{ backgroundColor: accent, color: ink }}
             >
               {copy.hero.open}
